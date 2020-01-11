@@ -5,13 +5,12 @@
  *
  * Copyright An Pham 2017 - xxxx.
  * Distributed under the Boost Software License, Version 1.0.
- * (See accompanying file LICENSE_1_0.txt or copy at http://www.boost.org/LICENSE_1_0.txt)
+ * (See accompanying file LICENSE.txt or copy at http://www.boost.org/LICENSE_1_0.txt)
  *
  */
 
 module pham.utl_dynlib;
 
-import std.exception : Exception;
 import std.format : format;
 import std.string : toStringz;
 import std.typecons : Flag, No, Yes;
@@ -42,17 +41,18 @@ class DllException : Exception
     string libName;
     uint errorCode;
 
-    this(string aMessage, string aLibName, Exception aNext = null)
+    this(string message, string libName,
+        Exception next = null)
     {
-        this(aMessage, getLastErrorString(), getLastErrorCode(), aLibName, aNext);
+        this(message, getLastErrorString(), getLastErrorCode(), libName, next);
     }
 
-    this(string aMessage, string aLastErrorMessage, uint aLastErrorCode, string aLibName,
-        Exception aNext = null)
+    this(string message, string lastErrorMessage, uint lastErrorCode, string libName,
+        Exception next = null)
     {
-        errorCode = aLastErrorCode;
-        libName = aLibName;
-        super(concateLineIf(aMessage, aLastErrorMessage), aNext);
+        this.errorCode = lastErrorCode;
+        this.libName = libName;
+        super(concateLineIf(message, lastErrorMessage), next);
     }
 
     /** Platform/OS specific last error code & last error message
@@ -100,25 +100,10 @@ class DllException : Exception
 
 class DllLibrary
 {
-private:
-    string _libName;
-    DllHandle _libHandle;
-
-protected:
-    /** Let the derived class to perform further action when library is loaded
-    */
-    void loaded()
-    {}
-
-    /** Let the derived class to perform further action when library is unloaded
-    */
-    void unloaded()
-    {}
-
 public:
-    this(string aLibName)
+    this(string libName)
     {
-        _libName = aLibName;
+        this._libName = libName;
     }
 
     ~this()
@@ -135,11 +120,11 @@ public:
             _libHandle = loadLib(_libName);
 
             static if (throwIfError)
-                if (!isLoaded)
-                {
-                    string err = format(DllMessage.eLoadLibrary, _libName);
-                    throw new DllException(err, _libName);
-                }
+            if (!isLoaded)
+            {
+                string err = format(DllMessage.eLoadLibrary, _libName);
+                throw new DllException(err, _libName);
+            }
 
             if (isLoaded)
                 loaded();
@@ -147,40 +132,40 @@ public:
         return isLoaded;
     }
 
-    /** Load the function address using aProcName
+    /** Load the function address using procName
         Params:
-            aProcName = Name of the function
-    
+            procName = Name of the function
+
         Throws:
             DllException if loadProc fails if throwIfError is true
-    
-        Returns: 
+
+        Returns:
             Pointer to the function
-    
+
         Example:
             fct = loadProc("AFunctionNameToBeLoaded...")
 
     */
-    final DllProc loadProc(Flag!"throwIfError" throwIfError = Yes.throwIfError)(string aProcName)
+    final DllProc loadProc(Flag!"throwIfError" throwIfError = Yes.throwIfError)(string procName)
     {
         DllProc res;
         if (isLoaded)
-            res = loadProc(_libHandle, aProcName);
+            res = loadProc(_libHandle, procName);
 
         static if (throwIfError)
-            if (res is null)
+        if (res is null)
+        {
+            if (!isLoaded)
             {
-                if (!isLoaded)
-                {
-                    string err = format(DllMessage.notLoadedLibrary, _libName);
-                    throw new DllException(err, null, 0, _libName);
-                }
-                else
-                {
-                    string err = format(DllMessage.eLoadFunction, _libName, aProcName);
-                    throw new DllException(err, null, 0, _libName);
-                }
+                string err = format(DllMessage.notLoadedLibrary, _libName);
+                throw new DllException(err, null, 0, _libName);
             }
+            else
+            {
+                string err = format(DllMessage.eLoadFunction, _libName, procName);
+                throw new DllException(err, null, 0, _libName);
+            }
+        }
 
         return res;
     }
@@ -204,38 +189,38 @@ public:
     {
         import core.sys.windows.windows;
 
-        DllHandle loadLib(string aLibName)
+        DllHandle loadLib(string libName)
         {
-            return LoadLibraryA(aLibName.toStringz());
+            return LoadLibraryA(libName.toStringz());
         }
 
-        DllProc loadProc(DllHandle aLibHandle, string aProcName)
+        DllProc loadProc(DllHandle libHandle, string procName)
         {
-            return GetProcAddress(aLibHandle, aProcName.toStringz());
+            return GetProcAddress(libHandle, procName.toStringz());
         }
 
-        void unloadLib(DllHandle aLibHandle)
+        void unloadLib(DllHandle libHandle)
         {
-            FreeLibrary(aLibHandle);
+            FreeLibrary(libHandle);
         }
     }
     else version(Posix)
     {
         import core.sys.posix.dlfcn;
 
-        DllHandle loadLib(string aLibName)
+        DllHandle loadLib(string libName)
         {
-            return dlopen(aLibName.toStringz(), RTLD_NOW);
+            return dlopen(libName.toStringz(), RTLD_NOW);
         }
 
-        DllProc loadProc(DllHandle aLibHandle, string aProcName)
+        DllProc loadProc(DllHandle libHandle, string procName)
         {
-            return dlsym(aLibHandle, aProcName.toStringz());
+            return dlsym(libHandle, procName.toStringz());
         }
 
-        void unloadLib(DllHandle aLibHandle)
+        void unloadLib(DllHandle libHandle)
         {
-            dlclose(aLibHandle);
+            dlclose(libHandle);
         }
     }
     else
@@ -243,34 +228,48 @@ public:
         static assert(0, "Unsupport platform.");
     }
 
-@property:
     /** Returns true if library was loaded
     */
-    bool isLoaded() const nothrow
-    { 
-        return (_libHandle !is null); 
+    @property bool isLoaded() const nothrow
+    {
+        return (_libHandle !is null);
     }
 
     /** Returns native handle of the loaded library; otherwise null
     */
-    DllHandle libHandle() nothrow
+    @property DllHandle libHandle() nothrow
     {
         return _libHandle;
     }
 
     /** Name of the library
     */
-    string libName() const nothrow
+    @property string libName() const nothrow
     {
         return _libName;
     }
+
+protected:
+    /** Let the derived class to perform further action when library is loaded
+    */
+    void loaded()
+    {}
+
+    /** Let the derived class to perform further action when library is unloaded
+    */
+    void unloaded()
+    {}
+
+private:
+    string _libName;
+    DllHandle _libHandle;
 }
 
 unittest // DllLibrary
 {
     import std.stdio : writeln;
     writeln("unittest utl_dynlib.DllLibrary");
-    
+
     version (Windows)
     {
         // Use any library that is always installed

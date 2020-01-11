@@ -5,14 +5,13 @@
  *
  * Copyright An Pham 2017 - xxxx.
  * Distributed under the Boost Software License, Version 1.0.
- * (See accompanying file LICENSE_1_0.txt or copy at http://www.boost.org/LICENSE_1_0.txt)
+ * (See accompanying file LICENSE.txt or copy at http://www.boost.org/LICENSE_1_0.txt)
  *
  */
 
 module pham.utl_inifile;
 
 import std.range : ElementType, isInputRange, isOutputRange;
-import std.exception : Exception;
 import std.format : format;
 import std.traits : hasUDA, isArray, isBasicType, isSomeString;
 import std.typecons : Flag, No, Yes;
@@ -20,7 +19,7 @@ import std.uni : sicmp;
 import std.file : exists;
 import std.stdio : File;
 
-import pham.utl_array : removeItemAt;
+import pham.utl_array : removeAt;
 import pham.utl_delegate;
 
 enum IniFileOpenMode
@@ -51,9 +50,9 @@ struct IniFileMessage
 
 class IniFileException : Exception
 {
-    this(string aMessage, Exception aNext = null)
+    this(string message, Exception next = null)
     {
-        super(aMessage, aNext);
+        super(message, next);
     }
 }
 
@@ -86,7 +85,7 @@ string getIni(T, string member)() @trusted
 	foreach (it; __traits(getAttributes, __traits(getMember, T, member)))
     {
 		if (hasUDA!(__traits(getMember, T, member), Ini))
-			return it.msg;		
+			return it.msg;
 	}
 
 	assert(0, member);
@@ -141,7 +140,7 @@ public:
              const i = indexOfName(removedName);
              if (i >= 0)
              {
-                 removeItemAt(values, i);
+                 removeAt(values, i);
                  return true;
              }
              else
@@ -170,43 +169,12 @@ public:
                 values[i].comments = null;
                 foreach (c; valueComments)
                     values[i].comments ~= c;
-            
+
                 return true;
             }
-            
+
             return false;
         }
-    }
-
-private:
-    static struct FoundSection
-    {
-        Line name;
-        ptrdiff_t index;
-    }
-
-    const(char)[] _inifileName;
-    Section[] _sections;
-    FoundSection foundSection = FoundSection(null, -1);
-    IniFileOpenMode _openMode;
-    bool _changed, _loadedError;
-
-protected:
-    final ptrdiff_t indexOfSection(Line sectionName) nothrow @safe
-    {
-        if (sicmp(foundSection.name, sectionName) == 0)
-            return foundSection.index;
-
-        foreach (i, ref s; _sections)
-        {
-            if (sicmp(s.name, sectionName) == 0)
-            {
-                foundSection = FoundSection(s.name, i);
-                return i;
-            }
-        }
-
-        return -1;
     }
 
 public:
@@ -232,14 +200,15 @@ public:
     */
     DelegateList!(IniFile, Line, Line, Line*) onSetValue;
 
-    this(const(char)[] aInifileName, IniFileOpenMode aOpenMode = IniFileOpenMode.readWrite)
+    this(const(char)[] inifileName,
+        IniFileOpenMode openMode = IniFileOpenMode.readWrite)
     {
-        _inifileName = aInifileName;
-        _openMode = aOpenMode;
+        this._inifileName = inifileName;
+        this._openMode = openMode;
 
-        if (aOpenMode == IniFileOpenMode.read)
+        if (openMode == IniFileOpenMode.read)
             load();
-        else if (aOpenMode == IniFileOpenMode.readWrite && exists(aInifileName))
+        else if (openMode == IniFileOpenMode.readWrite && exists(inifileName))
             load();
     }
 
@@ -425,11 +394,11 @@ public:
     */
     final bool removeSection(Line removedName) nothrow @safe
     {
-        const s = indexOfSection(removedName);
-        if (s >= 0)
+        const i = indexOfSection(removedName);
+        if (i >= 0)
         {
             foundSection = FoundSection(null, -1);
-            removeItemAt(_sections, s);
+            removeAt(_sections, i);
             _changed = true;
             return true;
         }
@@ -495,7 +464,7 @@ public:
                     saveComments(e.comments);
 
                 output.put(e.name);
-                if (e.value !is null)                   
+                if (e.value !is null)
                 {
                     output.put('=');
                     output.put(e.value);
@@ -514,7 +483,7 @@ public:
     final bool setSectionComment(L...)(Line sectionName, L sectionComments) nothrow @safe
     {
         const s = indexOfSection(sectionName);
-        if (s >= 0)            
+        if (s >= 0)
         {
             _sections[s].comments = null;
             foreach (c; sectionComments)
@@ -532,7 +501,7 @@ public:
     final bool setValueComment(L...)(Line sectionName, Line valueName, L valueComments) nothrow @safe
     {
         const s = indexOfSection(sectionName);
-        if (s >= 0)    
+        if (s >= 0)
         {
             if (_sections[s].setValueComment(valueName, valueComments))
             {
@@ -602,7 +571,7 @@ public:
                     lb = true;
                 else
                     return emptySection(IniFileLineKind.invalidSection);
-		    } 
+		    }
 		    else if (c == ']')
             {
                 if (!lb)
@@ -616,7 +585,7 @@ public:
                 }
                 else
                     return emptySection(IniFileLineKind.invalidSection);
-		    } 
+		    }
             else
             {
                 if (!lb)
@@ -658,7 +627,7 @@ public:
     {
         enum notSet = -1;
 
-        ptrdiff_t kb, ke, kq, e, vb, ve;       
+        ptrdiff_t kb, ke, kq, e, vb, ve;
 
         IniFileLineKind emptyKeyValue(IniFileLineKind res)
         {
@@ -701,7 +670,7 @@ public:
                 e = i;
                 if (ke == notSet)
                     ke = i;
-		    } 
+		    }
             else
             {
                 // Allow quoted name
@@ -746,7 +715,7 @@ public:
                             ke = notSet; // Reset
                     }
                 }
-                else 
+                else
                 {
                     // Begin value index set?
                     if (vb == notSet)
@@ -760,7 +729,7 @@ public:
         // Empty?
         if (kb == notSet)
             return emptyKeyValue(IniFileLineKind.empty);
-        
+
         // No equal sign or no value?
         if (e == notSet || vb == notSet)
         {
@@ -787,36 +756,66 @@ public:
         }
     }
 
-@property:
-    bool changed() const nothrow
+    @property bool changed() const nothrow
     {
         return _changed;
     }
 
-    const(char)[] inifileName() const nothrow
+    @property const(char)[] inifileName() const nothrow
     {
         return _inifileName;
     }
 
-    bool loadedError() const nothrow
+    @property bool loadedError() const nothrow
     {
         return _loadedError;
     }
 
-    bool needToSave() const nothrow
+    @property bool needToSave() const nothrow
     {
         return changed && _sections.length != 0 && inifileName.length != 0;
     }
 
-    IniFileOpenMode openMode() const nothrow
+    @property IniFileOpenMode openMode() const nothrow
     {
         return _openMode;
     }
 
-    Section[] sections() nothrow
+    @property Section[] sections() nothrow
     {
         return _sections;
     }
+
+protected:
+    final ptrdiff_t indexOfSection(Line sectionName) nothrow @safe
+    {
+        if (sicmp(foundSection.name, sectionName) == 0)
+            return foundSection.index;
+
+        foreach (i, ref s; _sections)
+        {
+            if (sicmp(s.name, sectionName) == 0)
+            {
+                foundSection = FoundSection(s.name, i);
+                return i;
+            }
+        }
+
+        return -1;
+    }
+
+private:
+    static struct FoundSection
+    {
+        Line name;
+        ptrdiff_t index;
+    }
+
+    const(char)[] _inifileName;
+    Section[] _sections;
+    FoundSection foundSection = FoundSection(null, -1);
+    IniFileOpenMode _openMode;
+    bool _changed, _loadedError;
 }
 
 string loadMember(T)() @safe
@@ -879,7 +878,7 @@ string saveMember(T)(T t)
     else static if (isArray!T && (isBasicType!(ElementType!T) || isSomeString!(ElementType!T)))
     {
         string value;
-		foreach(it; t) 
+		foreach(it; t)
         {
             if (value.length != 0)
                 value ~= format(",%s", it);
@@ -900,12 +899,12 @@ size_t saveMembers(T)(IniFile inifile, IniFile.Line sectionName, ref T t)
     size_t matchedCount;
 	foreach (it; __traits(allMembers, T))
     {
-		if (hasUDA!(__traits(getMember, T, it), Ini)) 
+		if (hasUDA!(__traits(getMember, T, it), Ini))
         {
 			static if (isBasicType!(typeof(__traits(getMember, T, it)))
 			           || isSomeString!(typeof(__traits(getMember, T, it)))
-                       || isArray!(typeof(__traits(getMember, T, it)))) 
-			{				
+                       || isArray!(typeof(__traits(getMember, T, it))))
+			{
                 inifile.setValue(sectionName, it, saveMember(__traits(getMember, t, it)));
                 inifile.setValueComment(sectionName, it, getIni!(T, it)());
                 ++matchedCount;
@@ -915,7 +914,7 @@ size_t saveMembers(T)(IniFile inifile, IniFile.Line sectionName, ref T t)
 
     if (hasUDA!(T, Ini))
 		inifile.setSectionComment(sectionName, getIni!T());
-	
+
     return matchedCount;
 }
 
@@ -923,7 +922,7 @@ unittest // IniFile.parseSection
 {
     import std.stdio : writeln;
     writeln("unittest utl_inifile.IniFile.parseSection");
-    
+
     IniFile.Line name;
 
     string gName()
@@ -973,7 +972,7 @@ unittest // IniFile.parseNameValue
 {
     import std.stdio : writeln;
     writeln("unittest utl_inifile.IniFile.parseNameValue");
-    
+
     IniFile.Line name, value;
 
     string gName()
@@ -1048,7 +1047,7 @@ unittest // IniFile
 {
     import std.stdio : writeln;
     writeln("unittest utl_inifile.IniFile");
-    
+
     IniFile inifile = new IniFile("unittestIniFile.ini", IniFileOpenMode.write);
 
     // Check for empty
@@ -1085,7 +1084,7 @@ unittest // IniFile
 
 version(unittest)
 @Ini("Foo struct")
-struct Foo 
+struct Foo
 {
 	@Ini("Foo name")
 	string name;

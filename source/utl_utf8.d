@@ -5,13 +5,16 @@
  *
  * Copyright An Pham 2017 - xxxx.
  * Distributed under the Boost Software License, Version 1.0.
- * (See accompanying file LICENSE_1_0.txt or copy at http://www.boost.org/LICENSE_1_0.txt)
+ * (See accompanying file LICENSE.txt or copy at http://www.boost.org/LICENSE_1_0.txt)
  *
  */
 
 module pham.utl_utf8;
 
-enum unicodeHalfShift = 10; 
+nothrow:
+@safe:
+
+enum unicodeHalfShift = 10;
 enum unicodeHalfBase = 0x00010000;
 enum unicodeHalfMask = 0x03FF;
 enum unicodeSurrogateHighBegin = 0xD800;
@@ -34,7 +37,7 @@ immutable uint[] unicodeOffsetsFromUTF8 = [
     0x00000000, 0x00003080, 0x000E2080, 0x03C82080, 0xFA082080, 0x82082080
 ];
 
-void inplaceMoveToLeft(ubyte[] data, size_t fromIndex, size_t toIndex, size_t nBytes) pure nothrow @trusted
+void inplaceMoveToLeft(ref ubyte[] data, size_t fromIndex, size_t toIndex, size_t nBytes) pure
 in
 {
     assert(nBytes > 0);
@@ -46,15 +49,15 @@ do
 {
     import core.stdc.string : memmove;
 
-    memmove(data.ptr + toIndex, data.ptr + fromIndex, nBytes);
+    (() @trusted => memmove(data.ptr + toIndex, data.ptr + fromIndex, nBytes))();
 }
 
 dchar utf8NextChar(const(char)[] str, ref size_t pos, out size_t cnt)
-{    
+{
     cnt = 0;
     if (pos >= str.length)
         return 0;
-    
+
     ubyte c = str[pos++];
 
     /* The following encodings are valid utf8 combinations:
@@ -74,9 +77,9 @@ dchar utf8NextChar(const(char)[] str, ref size_t pos, out size_t cnt)
 
         dchar res = 0;
 
-        switch (extraBytesToRead) 
+        switch (extraBytesToRead)
         {
-            case 5: 
+            case 5:
                 res += c;
                 res <<= 6;
                 c = str[pos++];
@@ -133,13 +136,13 @@ dchar utf8NextChar(const(char)[] str, ref size_t pos, out size_t cnt)
     }
 }
 
-unittest // inplaceMoveToLeft
+nothrow @safe unittest // inplaceMoveToLeft
 {
-    import std.stdio : writeln;
-    writeln("unittest utl_utf8.inplaceMoveToLeft");
+    import pham.utl_unittest;
+    dgWriteln("unittest utl_utf8.inplaceMoveToLeft");
 
-    char[] chars = "1234567890".dup;
+    auto chars = cast(ubyte[]) "1234567890".dup;
 
-    inplaceMoveToLeft(cast(ubyte[]) chars, 5, 0, 5);
+    inplaceMoveToLeft(chars, 5, 0, 5);
     assert(chars == "6789067890");
 }

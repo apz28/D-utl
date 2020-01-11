@@ -5,11 +5,14 @@
  *
  * Copyright An Pham 2017 - xxxx.
  * Distributed under the Boost Software License, Version 1.0.
- * (See accompanying file LICENSE_1_0.txt or copy at http://www.boost.org/LICENSE_1_0.txt)
+ * (See accompanying file LICENSE.txt or copy at http://www.boost.org/LICENSE_1_0.txt)
  *
  */
 
 module pham.utl_dlinklist;
+
+nothrow:
+@safe:
 
 template isDLink(T)
 if (is(T == class))
@@ -23,15 +26,10 @@ if (is(T == class))
 struct DLinkRange(T)
 if (isDLink!T)
 {
-private:
-    T _lastNode;
-    T _nextNode;
-    bool _done;
-
 public:
     this(T lastNode)
     {
-        _lastNode = lastNode;
+        this._lastNode = lastNode;
         if (lastNode is null)
             _done = true;
         else
@@ -54,33 +52,37 @@ public:
         }
     }
 
-@property:
-    T front() nothrow
+    @property T front() nothrow
     {
         return _nextNode;
     }
 
-    bool empty() const nothrow
+    @property bool empty() const nothrow
     {
         return _done;
     }
+
+private:
+    T _lastNode;
+    T _nextNode;
+    bool _done;
 }
 
 pragma (inline, true)
-bool dlinkHasPrev(T)(T lastNode, T checkNode) const nothrow @safe
+bool dlinkHasPrev(T)(T lastNode, T checkNode) const
 if (isDLink!T)
 {
     return checkNode !is lastNode._prev;
 }
 
 pragma (inline, true)
-bool dlinkHasNext(T)(T lastNode, T checkNode) const nothrow @safe
+bool dlinkHasNext(T)(T lastNode, T checkNode) const
 if (isDLink!T)
 {
     return checkNode !is lastNode._next;
 }
 
-T dlinkInsertAfter(T)(T refNode, T newNode) nothrow @safe
+T dlinkInsertAfter(T)(T refNode, T newNode)
 if (isDLink!T)
 in 
 {
@@ -96,7 +98,7 @@ do
     return newNode;
 }
 
-T dlinkInsertEnd(T)(ref T lastNode, T newNode) nothrow @safe
+T dlinkInsertEnd(T)(ref T lastNode, T newNode)
 if (isDLink!T)
 {
     if (lastNode is null)
@@ -110,7 +112,7 @@ if (isDLink!T)
     return newNode;
 }
 
-T dlinkRemove(T)(ref T lastNode, T oldNode) nothrow @safe
+T dlinkRemove(T)(ref T lastNode, T oldNode) nothrow
 if (isDLink!T)
 {
     if (oldNode._next is oldNode)

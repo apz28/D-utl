@@ -5,7 +5,7 @@
  *
  * Copyright An Pham 2017 - xxxx.
  * Distributed under the Boost Software License, Version 1.0.
- * (See accompanying file LICENSE_1_0.txt or copy at http://www.boost.org/LICENSE_1_0.txt)
+ * (See accompanying file LICENSE.txt or copy at http://www.boost.org/LICENSE_1_0.txt)
  *
  */
 
@@ -14,13 +14,15 @@ module pham.utl_enumset;
 import std.meta : allSatisfy;
 import std.traits : EnumMembers, isIntegral;
 
-private
-size_t maxBits() pure nothrow
+nothrow:
+@safe:
+
+private size_t maxBits() pure
 {
     return ulong.sizeof * 8;
 }
 
-size_t count(E)() pure nothrow
+size_t count(E)() pure
 if (is(E == enum))
 {
     size_t res;
@@ -127,7 +129,7 @@ if (isEnumSet!E)
             alias EnumSetType = ulong;
 }
 
-auto bit(E)(E value) pure nothrow
+auto bit(E)(E value) pure
 if (isEnumSet!E)
 {
     static if (isBitEnum!E)
@@ -147,7 +149,7 @@ if (isEnumSet!E)
     }
 }
 
-size_t ord(E)(E value) pure nothrow
+size_t ord(E)(E value) pure
 if (isEnumSet!E)
 {
     static if (isSequenceEnum!E)
@@ -168,30 +170,23 @@ if (isEnumSet!E)
 struct EnumSet(E)
 if (isEnumSet!E)
 {
-nothrow @safe:
-
 public:
     enum size = count!E();
 
-private:
-    EnumSetType!E _values;
-
 public:
-    struct Range
+    static struct Range
     {
-    private:
-        E[size] _values;
-        size_t _index, _length;
-
     public:
-        this(EnumSet!E aValues)
+        this(EnumSet!E values)
         {
-            if (!aValues.empty)
+            if (!values.empty)
+            {
                 foreach (i; EnumMembers!E)
                 {
-                    if (aValues.on(i))
-                        _values[_length++] = i;
+                    if (values.on(i))
+                        this._values[this._length++] = i;
                 }
+            }
         }
 
         void popBack()
@@ -209,8 +204,7 @@ public:
             return this;
         }
 
-    @property:
-        E back()
+        @property E back()
         in
         {
             assert(!empty);
@@ -220,12 +214,12 @@ public:
             return _values[_length - 1];
         }
 
-        bool empty() const
+        @property bool empty() const
         {
             return _index >= _length;
         }
 
-        E front()
+        @property E front()
         in
         {
             assert(!empty);
@@ -234,6 +228,10 @@ public:
         {
             return _values[_index];
         }
+
+    private:
+        E[size] _values;
+        size_t _index, _length;
     }
 
 public:
@@ -242,19 +240,19 @@ public:
         _values = bit(value);
     }
 
-    this(const(E)[] aValues)
+    this(const(E)[] values)
     {
-        _values = 0;
-        foreach (i; aValues)
-            _values |= bit(i);
+        this._values = 0;
+        foreach (i; values)
+            this._values |= bit(i);
     }
 
-    this(V...)(V aValues)
+    this(V...)(V values)
     if (allSatisfy!(isEnumSet, V))
     {
-        _values = 0;
-        foreach (i; aValues)
-            _values |= bit(i);
+        this._values = 0;
+        foreach (i; values)
+            this._values |= bit(i);
     }
 
     bool opCast(B: bool)() const
@@ -268,20 +266,20 @@ public:
         return this;
     }
 
-    auto ref opAssign(const(E)[] aValues)
+    auto ref opAssign(const(E)[] values)
     {
-        _values = 0;
-        foreach (i; aValues)
-            _values |= bit(i);
+        this._values = 0;
+        foreach (i; values)
+            this._values |= bit(i);
         return this;
     }
 
-    auto ref opAssign(V...)(V aValues)
+    auto ref opAssign(V...)(V values)
     if (allSatisfy!(isEnumSet, V))
     {
-        _values = 0;
-        foreach (i; aValues)
-            _values |= bit(i);
+        this._values = 0;
+        foreach (i; values)
+            this._values |= bit(i);
         return this;
     }
 
@@ -298,15 +296,15 @@ public:
         return this;       
     }
 
-    auto ref opOpAssign(string op)(EnumSet!E aValues)
+    auto ref opOpAssign(string op)(EnumSet!E source)
     if (op == "^" || op == "-" || op == "|" || op == "+" || op == "&" || op == "*")
     {
         static if (op == "^" || op == "-")
-            _values &= ~aValues.values;
+            _values &= ~source.values;
         else static if (op == "|" || op == "+")
-            _values |= aValues.values;
+            _values |= source.values;
         else static if (op == "&" || op == "*")
-            _values &= aValues.values;
+            _values &= source.values;
         else
             static assert(0);
 
@@ -320,16 +318,21 @@ public:
         return res.opOpAssign!op(value);
     }
 
-    auto opBinary(string op)(EnumSet!E aValues) const
+    auto opBinary(string op)(EnumSet!E source) const
     if (op == "^" || op == "-" || op == "|" || op == "+" || op == "&" || op == "*")
     {
         EnumSet!E res = this;
-        return res.opOpAssign!op(aValues);
+        return res.opOpAssign!op(source);
     }
 
-    bool opEquals()(auto ref const EnumSet!E aValues) const
+    bool opBinaryRight(string op : "in")(E value) const
+    {
+        return on(value);
+    }
+
+    bool opEquals()(auto ref const EnumSet!E source) const
     { 
-        return _values == aValues.values;
+        return _values == source.values;
     }
 
     Range opSlice() const
@@ -348,9 +351,9 @@ public:
     }
 
     pragma (inline, true)
-    bool any(const(E)[] aValues) const
+    bool any(const(E)[] source) const
     {
-        foreach (i; aValues)
+        foreach (i; source)
         {
             if (on(i))
                 return true;
@@ -358,10 +361,10 @@ public:
         return false;
     }
 
-    bool any(V...)(V aValues) const
+    bool any(V...)(V source) const
     if (allSatisfy!(isEnumSet, V))
     {
-        foreach (i; aValues)
+        foreach (i; source)
         {
             if (on(i))
                 return true;
@@ -391,39 +394,38 @@ public:
 
     /** Defines the set from a string representation
         Params:
-            aValues = a string representing one or several E members separated by comma
+            values = a string representing one or several E members separated by comma
         Returns:
             Number of failed to convert a member string
     */
-    size_t fromString(const(char)[] aValues)
+    size_t fromString(const(char)[] values)
     {
         import std.ascii : isWhite;
         import std.conv : to;
 
-        _values = 0;
+        this._values = 0;
 
-        size_t fails, pos, len;
-
-        len = aValues.length;
+        size_t fails, pos;
+        size_t len = values.length;
 
         // Skip trailing spaces
-        while (len > pos && isWhite(aValues[len - 1]))
+        while (len > pos && isWhite(values[len - 1]))
             --len;
 
         // Skip trailing set indicator?
-        if (pos < len && aValues[len - 1] == ']')
+        if (pos < len && values[len - 1] == ']')
             --len;
 
         // Skip preceeding spaces
         bool skipSpaces()
         {
-            while (pos < len && isWhite(aValues[pos]))
+            while (pos < len && isWhite(values[pos]))
                 ++pos;
             return pos < len;
         }
 
         // Skip preceeding set indicator?
-        if (skipSpaces() && aValues[pos] == '[')
+        if (skipSpaces() && values[pos] == '[')
             ++pos;        
 
         // Empty set?
@@ -435,9 +437,9 @@ public:
             // Get the begin and end position for the string element
             const begin = pos;
             size_t lastSpace = size_t.max;
-            while (pos < len && aValues[pos] != ',')
+            while (pos < len && values[pos] != ',')
             {
-                if (isWhite(aValues[pos]))
+                if (isWhite(values[pos]))
                 {
                     if (lastSpace == size_t.max)
                         lastSpace = pos;
@@ -448,7 +450,7 @@ public:
             }
 
             // Get the string element
-            auto value = aValues[begin .. lastSpace == size_t.max ? pos : lastSpace];
+            auto value = values[begin .. lastSpace == size_t.max ? pos : lastSpace];
 
             // Skip comma
             ++pos;
@@ -506,27 +508,27 @@ public:
         }
     }
 
-@property:
-    bool empty() const
+    @property bool empty() const
     {
         return _values == 0;
     }
 
-    EnumSetType!E values() const
+    @property EnumSetType!E values() const
     {
         return _values;
     }
+
+private:
+    EnumSetType!E _values;
 }
 
 struct EnumArray(E, T)
 if (isEnumSet!E)
 {
-nothrow @safe:
-
 public:
     enum size = count!E();
 
-    struct Entry 
+    static struct Entry 
     {
         T v;
         E e;
@@ -537,78 +539,77 @@ public:
         }
     }
 
-private:
-    enum isEntry(TEntry) = is(TEntry == Entry);
-    T[size] _values;
-
 public:
-    this(V...)(V aValues)
+    this(V...)(V values)
     if (allSatisfy!(isEntry, V))
     {
-        foreach (i; aValues)
-            _values[ord(i.e)] = i.v;
+        foreach (i; values)
+            this._values[ord(i.e)] = i.v;
     }
     
-    T opIndex(E aEnum) const
+    T opIndex(E value) const
     { 
-        return _values[ord(aEnum)]; 
+        return _values[ord(value)]; 
     }
 
-    T opIndexAssign(T aValue, E aEnum)
+    T opIndexAssign(T value, E enumValue)
     {
-        return _values[ord(aEnum)] = aValue;
+        return _values[ord(enumValue)] = value;
     }
 
-    T opDispatch(string aEnumName)() const
+    T opDispatch(string enumName)() const
     {
         import std.conv : to;
 
-        enum e = aEnumName.to!E;
+        enum e = enumName.to!E;
         return _values[ord(e)];
     }
 
-    T opDispatch(string aEnumName)(T aValue)
+    T opDispatch(string enumName)(T value)
     {
         import std.conv : to;
 
-        enum e = aEnumName.to!E;
-        return _values[ord(e)] = aValue;
+        enum e = enumName.to!E;
+        return _values[ord(e)] = value;
     }
 
-    bool exist(T aValue)
+    bool exist(T value)
     {
         foreach (i; EnumMembers!E)
         {
-            if (_values[ord(i)] == aValue)
+            if (_values[ord(i)] == value)
                 return true;
         }
 
         return false;
     }
 
-    E get(T aValue, E aDefault = E.min)
+    E get(T value, E defaultValue = E.min)
     {
         foreach (i; EnumMembers!E)
         {
-            if (_values[ord(i)] == aValue)
+            if (_values[ord(i)] == value)
                 return i;
         }
 
-        return aDefault;
+        return defaultValue;
     }
 
-@property:
-    size_t length() const
+    @property size_t length() const
     {
         return size;
     }
+
+private:
+    enum isEntry(TEntry) = is(TEntry == Entry);
+    T[size] _values;
 }
 
-unittest // EnumSet
+nothrow @safe unittest // EnumSet
 {
     import std.traits : OriginalType;
-    import std.stdio : writeln;
-    writeln("unittest utl_enumset.EnumSet");
+    import pham.utl_unittest;
+    dgWriteln("unittest utl_enumset.EnumSet");
 
     //pragma(msg, size_t.sizeof * 8, '.', size_t.max);
 
@@ -623,6 +624,7 @@ unittest // EnumSet
         {
             assert(testFlags.off(i));
             assert(!testFlags.on(i));
+            assert(!(i in testFlags));
         }
 
         assert(testFlags.inc(E.one).on(E.one));
@@ -785,10 +787,11 @@ unittest // EnumSet
     static assert(!isEnumSet!EnumTestFailOverElement);
 }
 
-unittest // EnumArray
-{
+nothrow @safe unittest // EnumArray
+{    
     import std.stdio : writeln;
-    writeln("unittest utl_enumset.EnumArray");
+    import pham.utl_unittest;
+    dgWriteln("unittest utl_enumset.EnumArray");
 
     enum EnumTest
     {

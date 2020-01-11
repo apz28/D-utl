@@ -5,7 +5,7 @@
  *
  * Copyright An Pham 2017 - xxxx.
  * Distributed under the Boost Software License, Version 1.0.
- * (See accompanying file LICENSE_1_0.txt or copy at http://www.boost.org/LICENSE_1_0.txt)
+ * (See accompanying file LICENSE.txt or copy at http://www.boost.org/LICENSE_1_0.txt)
  *
  */
 
@@ -17,9 +17,6 @@ struct DelegateList(Args...)
 {
 public:
     alias DelegateHandler = void delegate(Args args);
-
-private:
-    UnshrinkArray!DelegateHandler items;
 
 public:
     @disable this(this);
@@ -48,7 +45,7 @@ public:
         }
     }
 
-    bool opCast(ToT)() @safe nothrow
+    bool opCast(ToT)() nothrow @safe
     if (is(ToT == bool))
     {
         return length != 0;
@@ -81,11 +78,13 @@ public:
             items.remove(handler);
     }
 
-@property:
-    size_t length() const nothrow
+    @property size_t length() const nothrow
     {
         return items.length;
     }
+
+private:
+    UnshrinkArray!DelegateHandler items;
 }
 
 unittest // DelegateList
