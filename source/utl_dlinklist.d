@@ -9,10 +9,9 @@
  *
  */
 
-module pham.utl_dlinklist;
+module pham.utl.dlinklist;
 
-nothrow:
-@safe:
+nothrow @safe:
 
 template isDLink(T)
 if (is(T == class))
@@ -26,6 +25,8 @@ if (is(T == class))
 struct DLinkRange(T)
 if (isDLink!T)
 {
+nothrow @safe:
+
 public:
     this(T lastNode)
     {
@@ -33,7 +34,7 @@ public:
         if (lastNode is null)
             _done = true;
         else
-            _nextNode = cast(T) lastNode._next;
+            _nextNode = cast(T)lastNode._next;
     }
 
     void dispose()
@@ -47,7 +48,7 @@ public:
     {
         if (_nextNode !is null)
         {
-            _nextNode = cast(T) _nextNode._next;
+            _nextNode = cast(T)_nextNode._next;
             _done = _nextNode is null || _nextNode is _lastNode;
         }
     }
@@ -112,7 +113,7 @@ if (isDLink!T)
     return newNode;
 }
 
-T dlinkRemove(T)(ref T lastNode, T oldNode) nothrow
+T dlinkRemove(T)(ref T lastNode, T oldNode)
 if (isDLink!T)
 {
     if (oldNode._next is oldNode)
@@ -122,7 +123,7 @@ if (isDLink!T)
         oldNode._next._prev = oldNode._prev;
         oldNode._prev._next = oldNode._next;
         if (oldNode is lastNode)
-            lastNode = cast(T) oldNode._prev;
+            lastNode = cast(T)oldNode._prev;
     }
     oldNode._next = null;
     oldNode._prev = null;

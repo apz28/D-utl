@@ -9,18 +9,13 @@
  *
  */
 
-module pham.utl_enumset;
+module pham.utl.enumset;
 
+import std.conv : to;
 import std.meta : allSatisfy;
 import std.traits : EnumMembers, isIntegral;
 
-nothrow:
-@safe:
-
-private size_t maxBits() pure
-{
-    return ulong.sizeof * 8;
-}
+nothrow @safe:
 
 size_t count(E)() pure
 if (is(E == enum))
@@ -135,14 +130,14 @@ if (isEnumSet!E)
     static if (isBitEnum!E)
         return value;
     else static if (isSequenceEnum!E)
-        return cast(EnumSetType!E) 1 << value;
+        return cast(EnumSetType!E)1 << value;
     else
     {
         size_t at;
         foreach (i; EnumMembers!E)
         {
             if (i == value)
-                return cast(EnumSetType!E) 1 << at;
+                return cast(EnumSetType!E)1 << at;
             ++at;
         }
         assert(0);
@@ -167,15 +162,45 @@ if (isEnumSet!E)
     }
 }
 
+E toEnum(E)(string value, E emptyValue = E.init) pure
+if (is(E Base == enum))
+{
+    try
+    {
+        return value.length != 0 ? to!E(value) : emptyValue;
+    }
+    catch (Exception)
+    {
+        assert(0);
+    }
+}
+
+string toName(E)(E value) pure
+if (is(E Base == enum))
+{
+    try
+    {
+        return to!string(value);
+    }
+    catch (Exception)
+    {
+        assert(0);
+    }
+}
+
 struct EnumSet(E)
 if (isEnumSet!E)
 {
+nothrow @safe:
+
 public:
     enum size = count!E();
 
 public:
     static struct Range
     {
+    nothrow @safe:
+
     public:
         this(EnumSet!E values)
         {
@@ -296,7 +321,7 @@ public:
         return this;       
     }
 
-    auto ref opOpAssign(string op)(EnumSet!E source)
+    auto ref opOpAssign(string op)(EnumSet!E source) return
     if (op == "^" || op == "-" || op == "|" || op == "+" || op == "&" || op == "*")
     {
         static if (op == "^" || op == "-")
@@ -340,12 +365,12 @@ public:
         return Range(this);
     }
 
-    auto ref exc(E value)
+    auto ref exclude(E value)
     {
         return opOpAssign!"-"(value);
     }
 
-    auto ref inc(E value)
+    auto ref include(E value)
     {
         return opOpAssign!"+"(value);
     }
@@ -458,7 +483,7 @@ public:
             try
             {
                 auto toValue = to!E(value);
-                inc(toValue);
+                include(toValue);
              }
              catch (Exception e)
              {
@@ -525,18 +550,25 @@ private:
 struct EnumArray(E, T)
 if (isEnumSet!E)
 {
+nothrow @safe:
+
 public:
     enum size = count!E();
 
     static struct Entry 
     {
+    nothrow @safe:
+
+    public:
+        this(E e, T v)
+        {
+            this.e = e;
+            this.v = v;
+        }
+
+    public:
         T v;
         E e;
-        this(E aE, T aV)
-        {
-            e = aE;
-            v = aV;
-        }
     }
 
 public:
@@ -605,10 +637,51 @@ private:
     T[size] _values;
 }
 
+private size_t maxBits() pure
+{
+    return ulong.sizeof * 8;
+}
+
+nothrow @safe unittest // toEnum
+{
+    import pham.utl.test;
+    dgWriteln("unittest utl_enumset.toEnum");
+
+    enum EnumTestOrder
+    {
+        one,
+        two,
+        three
+    }
+
+    assert(toEnum!EnumTestOrder("") == EnumTestOrder.one);
+    assert(toEnum!EnumTestOrder("", EnumTestOrder.two) == EnumTestOrder.two);
+    assert(toEnum!EnumTestOrder("one") == EnumTestOrder.one);
+    assert(toEnum!EnumTestOrder("two") == EnumTestOrder.two);
+    assert(toEnum!EnumTestOrder("three") == EnumTestOrder.three);
+}
+
+nothrow @safe unittest // toName
+{
+    import pham.utl.test;
+    dgWriteln("unittest utl_enumset.toName");
+
+    enum EnumTestOrder
+    {
+        one,
+        two,
+        three
+    }
+
+    assert(toName(EnumTestOrder.one) == "one");
+    assert(toName(EnumTestOrder.two) == "two");
+    assert(toName(EnumTestOrder.three) == "three");
+}
+
 nothrow @safe unittest // EnumSet
 {
     import std.traits : OriginalType;
-    import pham.utl_unittest;
+    import pham.utl.test;
     dgWriteln("unittest utl_enumset.EnumSet");
 
     //pragma(msg, size_t.sizeof * 8, '.', size_t.max);
@@ -627,15 +700,15 @@ nothrow @safe unittest // EnumSet
             assert(!(i in testFlags));
         }
 
-        assert(testFlags.inc(E.one).on(E.one));
+        assert(testFlags.include(E.one).on(E.one));
         assert(testFlags.off(E.two));
         assert(testFlags.off(E.three));
 
-        assert(testFlags.inc(E.two).on(E.two));
+        assert(testFlags.include(E.two).on(E.two));
         assert(testFlags.on(E.one));
         assert(testFlags.off(E.three));
 
-        assert(testFlags.inc(E.three).on(E.three));
+        assert(testFlags.include(E.three).on(E.three));
 
         assert(testFlags.values != 0);
         foreach (i; EnumMembers!E)
@@ -645,15 +718,15 @@ nothrow @safe unittest // EnumSet
         }
         assert(testFlags.toString() == values, testFlags.toString());
 
-        assert(testFlags.exc(E.one).off(E.one));
+        assert(testFlags.exclude(E.one).off(E.one));
         assert(testFlags.on(E.two));
         assert(testFlags.on(E.three));
 
-        assert(testFlags.exc(E.two).off(E.two));
+        assert(testFlags.exclude(E.two).off(E.two));
         assert(testFlags.off(E.two));
         assert(testFlags.on(E.three));
 
-        assert(testFlags.exc(E.three).off(E.three));
+        assert(testFlags.exclude(E.three).off(E.three));
 
         assert(testFlags.values == 0);
         foreach (i; EnumMembers!E)
@@ -789,8 +862,7 @@ nothrow @safe unittest // EnumSet
 
 nothrow @safe unittest // EnumArray
 {    
-    import std.stdio : writeln;
-    import pham.utl_unittest;
+    import pham.utl.test;
     dgWriteln("unittest utl_enumset.EnumArray");
 
     enum EnumTest

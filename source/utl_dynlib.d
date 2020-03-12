@@ -9,7 +9,7 @@
  *
  */
 
-module pham.utl_dynlib;
+module pham.utl.dynlib;
 
 import std.format : format;
 import std.string : toStringz;

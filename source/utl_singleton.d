@@ -9,7 +9,7 @@
  *
  */
 
-module pham.utl_singleton;
+module pham.utl.singleton;
 
 import core.atomic : atomicFence;
 

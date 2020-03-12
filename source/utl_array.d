@@ -9,12 +9,27 @@
  *
  */
 
-module pham.utl_array;
+module pham.utl.array;
 
 import std.range.primitives : ElementType;
 import std.traits : isDynamicArray, isStaticArray, lvalueOf;
 
-void removeAt(T)(ref T array, size_t index) nothrow pure @safe
+nothrow @safe:
+
+C[] arrayOfChar(C)(C c, size_t count)
+if (is(C == char) || is(C == byte) || is(C == ubyte))
+{
+    if (count)
+    {
+        auto result = new C[count];
+        result[] = c;
+        return result;
+    }
+    else
+        return null;
+}
+
+void removeAt(T)(ref T array, size_t index) pure
 if (isDynamicArray!T)
 in
 {
@@ -38,7 +53,7 @@ do
     array.length = array.length - 1;
 }
 
-void removeAt(T)(ref T array, size_t index, ref size_t length) nothrow pure @safe
+void removeAt(T)(ref T array, size_t index, ref size_t length) pure
 if (isStaticArray!T)
 in
 {
@@ -71,12 +86,254 @@ do
 
 struct IndexedArray(T, ushort staticSize)
 {
+nothrow @safe:
+
+public:
+    this(size_t capacity) pure
+    {
+        if (capacity > staticSize)
+            _dynamicItems.reserve(capacity);
+    }
+
+    this(inout(T)[] values) pure
+    {
+        const valueLength = values.length;
+        this(valueLength);
+        if (valueLength != 0)
+        {
+            if (valueLength <= staticSize)
+            {
+                _staticLength = valueLength;
+                _staticItems[0..valueLength] = values[0..valueLength];
+            }
+            else
+            {
+                _dynamicItems.length = valueLength;
+                _dynamicItems[0..valueLength] = values[0..valueLength];
+            }
+        }
+    }
+
+    void opOpAssign(string op)(T item) pure
+    if (op == "~" || op == "+" || op == "-")
+    {
+        static if (op == "~" || op == "+")
+            putBack(item);
+        else static if (op == "-")
+            remove(item);
+        else
+            static assert(0);
+    }
+
+    bool opCast(To: bool)() const pure
+    {
+        return !empty;
+    }
+
+    /** Returns range interface
+    */
+    T[] opIndex() pure return
+    {
+        const len = length;
+        return len != 0 ? (useStatic() ? _staticItems[0..len] : _dynamicItems) : null;
+    }
+
+    T opIndex(size_t index) const pure
+    in
+    {
+        assert(index < length);
+    }
+    do
+    {
+        return useStatic() ? _staticItems[index] : _dynamicItems[index];
+    }
+
+    void opIndexAssign(T item, size_t index) pure
+    {
+        const atLength = index + 1;
+        if (atLength > staticSize || !useStatic())
+        {
+            switchToDynamicItems(atLength, false);
+            _dynamicItems[index] = item;
+        }
+        else
+        {
+            _staticItems[index] = item;
+            if (_staticLength < atLength)
+                _staticLength = atLength;
+            assert(_staticLength <= staticSize);
+        }
+        assert(atLength <= length);
+    }
+
+    void opIndexAssign(inout(T)[] items, size_t startIndex) pure
+    {
+        const atLength = startIndex + items.length;
+        if (atLength > staticSize || !useStatic())
+        {
+            switchToDynamicItems(atLength, false);
+            _dynamicItems[startIndex..startIndex + items.length] = items[0..items.length];
+        }
+        else
+        {
+            _staticItems[startIndex..startIndex + items.length] = items[0..items.length];
+            if (_staticLength < atLength)
+                _staticLength = atLength;
+            assert(_staticLength <= staticSize);
+        }
+        assert(atLength <= length);
+    }
+
+    /** Returns range interface
+    */
+    T[] opSlice(size_t begin, size_t end) pure return
+    in
+    {
+        assert(begin < end);
+        assert(begin < length);
+    }
+    do
+    {
+        const len = length;
+        if (end > len)
+            end = len;
+
+        return end - begin > 0 ? (useStatic() ? _staticItems[begin..end] : _dynamicItems[begin..end]) : null;
+    }
+
+    void clear(size_t capacity = 0) pure
+    {
+        assert(_staticLength <= staticSize);
+
+        if (_staticLength != 0)
+        {
+            _staticItems[0.._staticLength] = T.init;
+            _staticLength = 0;
+        }
+
+        if (capacity > staticSize)
+        {
+            if (_dynamicItems.length != 0)
+                _dynamicItems.length = 0;
+            _dynamicItems.reserve(capacity);
+        }
+        else
+            _dynamicItems = null;
+    }
+
+    T[] dup() pure
+    {
+        return opIndex().dup;
+    }
+
+    ptrdiff_t indexOf(in T item) pure @trusted
+    {
+        if (length == 0)
+            return -1;
+
+        auto items = opIndex();
+        for (ptrdiff_t i = 0; i < items.length; ++i)
+        {
+            if (items[i] == item)
+                return i;
+        }
+        return -1;
+    }
+
+    alias put = putBack;
+
+    T putBack(T item) pure
+    {
+        const newLength = length + 1;
+        if (newLength > staticSize || !useStatic())
+        {
+            switchToDynamicItems(newLength, true);
+            _dynamicItems[newLength - 1] = item;
+        }
+        else
+        {
+            _staticItems[_staticLength++] = item;
+            assert(_staticLength <= staticSize);
+        }
+        assert(length == newLength);
+
+        return item;
+    }
+
+    T remove(in T item) pure
+    {
+        const i = indexOf(item);
+        if (i >= 0)
+            return doRemove(i);
+        else
+            return T.init;
+    }
+
+    T removeAt(size_t index) pure
+    {
+        if (index < length)
+            return doRemove(index);
+        else
+            return T.init;
+    }
+
+    T* ptr(size_t startIndex = 0) pure return
+    in
+    {
+        assert(startIndex < length);
+    }
+    do
+    {
+        return useStatic() ? &_staticItems[startIndex] : &_dynamicItems[startIndex];
+    }
+
+    void fill(T item, size_t startIndex = 0) pure
+    in
+    {
+        assert(startIndex < length);
+    }
+    do
+    {
+        if (useStatic())
+            _staticItems[startIndex..length] = item;
+        else
+            _dynamicItems[startIndex..length] = item;
+    }
+
+    pragma (inline, true)
+    bool useStatic() const pure
+    {
+        return _dynamicItems.ptr is null;
+    }
+
+    @property bool empty() const pure
+    {
+        return length == 0;
+    }
+
+    @property size_t length() const pure
+    {
+        return useStatic() ? _staticLength : _dynamicItems.length;
+    }
+
+    @property size_t length(size_t newLength) pure
+    {
+        if (length != newLength)
+        {
+            if (newLength <= staticSize && useStatic())
+                _staticLength = newLength;
+            else
+                switchToDynamicItems(newLength, true);
+        }
+        return newLength;
+    }
+
 private:
     T[] _dynamicItems;
     T[staticSize] _staticItems;
     size_t _staticLength;
 
-    T doRemove(size_t index) nothrow pure @trusted
+    T doRemove(size_t index) pure @trusted
     in
     {
         assert(index < length);
@@ -98,301 +355,43 @@ private:
         }
     }
 
-    void switchToDynamicItems(size_t newLength) nothrow pure @trusted
+    void switchToDynamicItems(size_t newLength, bool mustSet) pure @trusted
     {
         if (useStatic())
         {
-            assert(_staticLength == staticSize);
+            const setLength = mustSet ? newLength : _staticLength;
+            const copyLength = _staticLength > setLength ? setLength : _staticLength;
+            _dynamicItems.reserve(setLength + setLength / 2);
 
-            const capacity = newLength > staticSize ? newLength + newLength / 2 : staticSize * 2;
-            _dynamicItems.reserve(capacity);
+            _dynamicItems.length = setLength;
+            _dynamicItems[0..copyLength] = _staticItems[0..copyLength];
 
-            _dynamicItems.length = newLength > staticSize ? newLength : staticSize;
-            _dynamicItems[0..staticSize] = _staticItems[0..staticSize];
-
-            _staticItems[] = T.init;
             _staticLength = 0;
+            _staticItems[] = T.init;
         }
         else
         {
             if (newLength > _dynamicItems.capacity)
                 _dynamicItems.reserve(newLength + newLength / 2);
 
-            if (newLength > _dynamicItems.length)
+            if (mustSet || _dynamicItems.length < newLength)
                 _dynamicItems.length = newLength;
         }
-    }
-
-public:
-    this(size_t capacity) nothrow pure @safe
-    {
-        if (capacity > staticSize)
-            _dynamicItems.reserve(capacity);
-    }
-
-    this(inout(T)[] value) nothrow pure @safe
-    {
-        const len = value.length;
-        this(len);
-        if (len != 0)
-        {
-            if (len <= staticSize)
-            {
-                _staticItems[0..len] = value[0..len];
-                _staticLength = len;
-            }
-            else
-            {
-                _dynamicItems.length = len;
-                _dynamicItems[0..len] = value[0..len];
-            }
-        }
-    }
-
-    void opOpAssign(string op)(T item) nothrow pure @safe
-    if (op == "~" || op == "+" || op == "-")
-    {
-        static if (op == "~" || op == "+")
-            putBack(item);
-        else static if (op == "-")
-            remove(item);
-        else
-            static assert(0);
-    }
-
-    bool opCast(To: bool)() const nothrow pure @safe
-    {
-        return !empty;
-    }
-
-    /** Returns range interface
-    */
-    T[] opIndex() nothrow pure return @safe
-    {
-        const len = length;
-        return len != 0 ? (useStatic() ? _staticItems[0..len] : _dynamicItems) : null;
-    }
-
-    T opIndex(size_t index) const nothrow pure @safe
-    in
-    {
-        assert(index < length);
-    }
-    do
-    {
-        return useStatic() ? _staticItems[index] : _dynamicItems[index];
-    }
-
-    void opIndexAssign(T item, size_t index) nothrow pure @safe
-    {
-        const newLength = index + 1;
-        if (newLength > staticSize || !useStatic())
-        {
-            switchToDynamicItems(newLength);
-            _dynamicItems[index] = item;
-        }
-        else
-        {
-            _staticItems[index] = item;
-            if (_staticLength < newLength)
-                _staticLength = newLength;
-            assert(_staticLength <= staticSize);
-        }
-        assert(newLength <= length);
-    }
-
-    void opIndexAssign(inout(T)[] items, size_t startIndex) nothrow pure @safe
-    {
-        const newLength = startIndex + items.length;
-        if (newLength > staticSize || !useStatic())
-        {
-            switchToDynamicItems(newLength);
-            _dynamicItems[startIndex..startIndex + items.length] = items[0..items.length];
-        }
-        else
-        {
-            _staticItems[startIndex..startIndex + items.length] = items[0..items.length];
-            if (_staticLength < newLength)
-                _staticLength = newLength;
-            assert(_staticLength <= staticSize);
-        }
-        assert(newLength <= length);
-    }
-
-    /** Returns range interface
-    */
-    T[] opSlice(size_t begin, size_t end) nothrow pure return @safe
-    in
-    {
-        assert(begin < end);
-        assert(begin < length);
-    }
-    do
-    {
-        const len = length;
-        if (end > len)
-            end = len;
-
-        return end - begin > 0 ? (useStatic() ? _staticItems[begin..end] : _dynamicItems[begin..end]) : null;
-    }
-
-    void clear(size_t capacity = 0) nothrow pure @safe
-    {
-        assert(_staticLength <= staticSize);
-
-        if (_staticLength != 0)
-        {
-            _staticItems[0.._staticLength] = T.init;
-            _staticLength = 0;
-        }
-
-        if (capacity > staticSize)
-        {
-            if (_dynamicItems.length != 0)
-                _dynamicItems.length = 0;
-            _dynamicItems.reserve(capacity);
-        }
-        else
-            _dynamicItems = null;
-    }
-
-    T[] dup() nothrow pure @safe
-    {
-        return opIndex().dup;
-    }
-
-    ptrdiff_t indexOf(in T item) nothrow pure @trusted
-    {
-        if (length == 0)
-            return -1;
-
-        auto items = opIndex();
-        for (ptrdiff_t i = 0; i < items.length; ++i)
-        {
-            if (items[i] == item)
-                return i;
-        }
-        return -1;
-    }
-
-    alias put = putBack;
-
-    T putBack(T item) nothrow pure @safe
-    {
-        const newLength = length + 1;
-        if (newLength > staticSize || !useStatic())
-        {
-            switchToDynamicItems(newLength);
-            _dynamicItems[newLength - 1] = item;
-        }
-        else
-        {
-            _staticItems[_staticLength++] = item;
-            assert(_staticLength <= staticSize);
-        }
-        assert(length == newLength);
-
-        return item;
-    }
-
-    T remove(in T item) nothrow pure @safe
-    {
-        const i = indexOf(item);
-        if (i >= 0)
-            return doRemove(i);
-        else
-            return T.init;
-    }
-
-    T removeAt(size_t index) nothrow pure @safe
-    {
-        if (index < length)
-            return doRemove(index);
-        else
-            return T.init;
-    }
-
-    T* ptr(size_t startIndex = 0) nothrow pure return @safe
-    in
-    {
-        assert(startIndex < length);
-    }
-    do
-    {
-        return useStatic() ? &_staticItems[startIndex] : &_dynamicItems[startIndex];
-    }
-
-    void fill(T item, size_t startIndex = 0) nothrow pure @safe
-    in
-    {
-        assert(startIndex < length);
-    }
-    do
-    {
-        if (useStatic())
-            _staticItems[startIndex..$] = item;
-        else
-        {
-            _staticItems[] = item;
-            _dynamicItems[startIndex..$] = item;
-        }
-    }
-
-    pragma (inline, true)
-    bool useStatic() const nothrow pure @safe
-    {
-        return _dynamicItems.ptr is null;
-    }
-
-    @property bool empty() const nothrow pure @safe
-    {
-        return length == 0;
-    }
-
-    @property size_t length() const nothrow pure @safe
-    {
-        return useStatic() ? _staticLength : _dynamicItems.length;
-    }
-
-    @property size_t length(size_t newLength) nothrow pure @safe
-    {
-        if (length() != newLength)
-        {
-            if (newLength <= staticSize && useStatic())
-                _staticLength = newLength;
-            else
-                switchToDynamicItems(newLength);
-        }
-        return newLength;
     }
 }
 
 struct UnshrinkArray(T)
 {
-private:
-    T[] _items;
-
-    T doRemove(size_t index) nothrow @trusted
-    in
-    {
-        assert(_items.length > 0);
-        assert(index < _items.length);
-    }
-    do
-    {
-        auto res = _items[index];
-        .removeAt(_items, index);
-        return res;
-    }
+nothrow @safe:
 
 public:
-    this(size_t capacity) nothrow @safe
+    this(size_t capacity)
     {
         if (capacity != 0)
             _items.reserve(capacity);
     }
 
-    void opOpAssign(string op)(T item) nothrow @safe
+    void opOpAssign(string op)(T item)
     if (op == "~" || op == "+" || op == "-")
     {
         static if (op == "~" || op == "+")
@@ -403,19 +402,19 @@ public:
             static assert(0);
     }
 
-    bool opCast(To: bool)() const nothrow @safe
+    bool opCast(To: bool)() const
     {
         return !empty;
     }
 
     /** Returns range interface
     */
-    T[] opIndex() nothrow return @safe
+    T[] opIndex() return
     {
         return _items;
     }
 
-    T opIndex(size_t index) nothrow @safe
+    T opIndex(size_t index)
     in
     {
         assert(index < _items.length);
@@ -425,7 +424,7 @@ public:
         return _items[index];
     }
 
-    void opIndexAssign(T item, size_t index) nothrow @safe
+    void opIndexAssign(T item, size_t index)
     in
     {
         assert(index < _items.length);
@@ -435,12 +434,12 @@ public:
         _items[index] = item;
     }
 
-    void clear() nothrow @trusted
+    void clear() @trusted
     {
         _items.length = 0;
     }
 
-    T[] dup() nothrow @safe
+    T[] dup()
     {
         if (_items.length != 0)
             return _items.dup;
@@ -448,7 +447,7 @@ public:
             return null;
     }
 
-    ptrdiff_t indexOf(in T item) nothrow @trusted
+    ptrdiff_t indexOf(in T item) @trusted
     {
         if (_items.length != 0)
             for (ptrdiff_t i = 0; i < _items.length; ++i)
@@ -460,13 +459,13 @@ public:
         return -1;
     }
 
-    T putBack(T item) nothrow @safe
+    T putBack(T item)
     {
         _items ~= item;
         return item;
     }
 
-    T remove(in T item) nothrow @safe
+    T remove(in T item)
     {
         const i = indexOf(item);
         if (i >= 0)
@@ -475,7 +474,7 @@ public:
             return T.init;
     }
 
-    T removeAt(size_t index) nothrow @safe
+    T removeAt(size_t index)
     {
         if (index < length)
             return doRemove(index);
@@ -483,21 +482,47 @@ public:
             return T.init;
     }
 
-    @property bool empty() const nothrow @safe
+    @property bool empty() const
     {
         return length == 0;
     }
 
-    @property size_t length() const nothrow @safe
+    @property size_t length() const
     {
         return _items.length;
     }
+
+private:
+    T[] _items;
+
+    T doRemove(size_t index) @trusted
+    in
+    {
+        assert(_items.length > 0);
+        assert(index < _items.length);
+    }
+    do
+    {
+        auto res = _items[index];
+        .removeAt(_items, index);
+        return res;
+    }
 }
 
-unittest
+nothrow @safe unittest
 {
-    import std.stdio : writeln;
-    writeln("unittest utl_array.IndexedArray");
+    import pham.utl.test;
+    dgWriteln("unittest utl_array.arrayOfChar");
+
+    assert(arrayOfChar!char('0', 0) == []);
+    assert(arrayOfChar!char('0', 1) == "0");
+    assert(arrayOfChar!char('0', 10) == "0000000000");
+}
+
+nothrow @safe unittest
+{
+    import pham.utl.test;
+    dgWriteln("unittest utl_array.IndexedArray");
 
     auto a = IndexedArray!(int, 2)(0);
 
@@ -596,10 +621,10 @@ unittest
     assert(a[0] == 10);
 }
 
-unittest
+nothrow @safe unittest
 {
-    import std.stdio : writeln;
-    writeln("unittest utl_array.UnshrinkArray");
+    import pham.utl.test;
+    dgWriteln("unittest utl_array.UnshrinkArray");
 
     auto a = UnshrinkArray!int(0);
 
@@ -672,4 +697,3 @@ unittest
     assert(a.remove(1) == 0);
     assert(a.removeAt(1) == 0);
 }
-

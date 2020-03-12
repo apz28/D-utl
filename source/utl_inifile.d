@@ -9,7 +9,7 @@
  *
  */
 
-module pham.utl_inifile;
+module pham.utl.inifile;
 
 import std.range : ElementType, isInputRange, isOutputRange;
 import std.format : format;
@@ -19,8 +19,8 @@ import std.uni : sicmp;
 import std.file : exists;
 import std.stdio : File;
 
-import pham.utl_array : removeAt;
-import pham.utl_delegate;
+import pham.utl.array : removeAt;
+import pham.utl.delegatelist;
 
 enum IniFileOpenMode
 {
@@ -1082,7 +1082,7 @@ unittest // IniFile
     assert(inifile.getNames("section") is null);
 }
 
-version(unittest)
+version (unittest)
 @Ini("Foo struct")
 struct Foo
 {
@@ -1120,8 +1120,8 @@ struct Foo
 
 unittest // saveMembers & loadMembers
 {
-    import std.stdio : writeln;
-    writeln("unittest utl_inifile.saveMembers & utl_inifile.loadMembers");
+    import pham.utl.test;
+    dgWriteln("unittest utl_inifile.saveMembers & utl_inifile.loadMembers");
 
     IniFile inifile = new IniFile("unittestIniFile.ini", IniFileOpenMode.write);
 
