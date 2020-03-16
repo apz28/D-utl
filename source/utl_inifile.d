@@ -58,8 +58,7 @@ class IniFileException : Exception
 
 struct Ini
 {
-	string msg;
-
+public:
 	static Ini opCall(string msg)
     {
         Ini v;
@@ -67,6 +66,9 @@ struct Ini
 
 		return v;
 	}
+
+public:
+	string msg;
 }
 
 string getIni(T)() @trusted
@@ -553,7 +555,7 @@ public:
 
         IniFileLineKind emptySection(IniFileLineKind res)
         {
-            name = res == IniFileLineKind.comment ? line[nb .. ne] : null;
+            name = res == IniFileLineKind.comment ? line[nb..ne] : null;
             return res;
         }
 
@@ -611,7 +613,7 @@ public:
 
         if (lb && rb && nb >= 0 && ne > nb)
         {
-            name = line[nb .. ne];
+            name = line[nb..ne];
             return IniFileLineKind.section;
         }
         else
@@ -631,7 +633,7 @@ public:
 
         IniFileLineKind emptyKeyValue(IniFileLineKind res)
         {
-            name = res == IniFileLineKind.comment ? line[vb .. ve] : null;
+            name = res == IniFileLineKind.comment ? line[vb..ve] : null;
             value = null;
             return res;
         }
@@ -738,7 +740,7 @@ public:
 
             adjustQuote(kb, ke);
 
-            name = line[kb .. ke];
+            name = line[kb..ke];
             value = null;
             return IniFileLineKind.noValue;
         }
@@ -750,8 +752,8 @@ public:
             adjustQuote(kb, ke);
             adjustQuote(vb, ve);
 
-            name = line[kb .. ke];
-            value = line[vb .. ve];
+            name = line[kb..ke];
+            value = line[vb..ve];
             return IniFileLineKind.nameValue;
         }
     }

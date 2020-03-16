@@ -48,6 +48,12 @@ string shortClassName(Object object) pure
     }
 }
 
+@system
+interface IDisposable
+{
+    void dispose();
+}
+
 struct InitializedValue(T)
 {
 nothrow @safe:
@@ -107,5 +113,5 @@ public:
 
 private:
     T _value;
-    bool _inited = false;
+    bool _inited;
 }

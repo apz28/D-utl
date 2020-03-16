@@ -14,7 +14,7 @@ module pham.utl.dlinklist;
 nothrow @safe:
 
 template isDLink(T)
-if (is(T == class))
+if (is(T == class) || isPointer(T))
 {
     static if (__traits(hasMember, T, "_next") && __traits(hasMember, T, "_prev"))
         enum isDLink = true;
@@ -22,110 +22,110 @@ if (is(T == class))
         enum isDLink = false;
 }
 
-struct DLinkRange(T)
+mixin template DLinkTypes(T)
 if (isDLink!T)
 {
-nothrow @safe:
-
-public:
-    this(T lastNode)
+    struct Range
     {
-        this._lastNode = lastNode;
-        if (lastNode is null)
-            _done = true;
-        else
-            _nextNode = cast(T)lastNode._next;
-    }
+    nothrow @safe:
 
-    void dispose()
-    {
-        _lastNode = null;
-        _nextNode = null;
-        _done = true;
-    }
-
-    void popFront() nothrow
-    {
-        if (_nextNode !is null)
+    public:
+        this(T lastNode)
         {
-            _nextNode = cast(T)_nextNode._next;
-            _done = _nextNode is null || _nextNode is _lastNode;
+            this._lastNode = lastNode;
+            if (lastNode is null)
+                _done = true;
+            else
+                _nextNode = cast(T)(lastNode._next);
         }
-    }
 
-    @property T front() nothrow
+        void dispose()
+        {
+            _lastNode = null;
+            _nextNode = null;
+            _done = true;
+        }
+
+        void popFront()
+        {
+            if (_nextNode !is null)
+            {
+                _nextNode = cast(T)(_nextNode._next);
+                _done = _nextNode is null || _nextNode is _lastNode;
+            }
+        }
+
+        @property T front()
+        {
+            return _nextNode;
+        }
+
+        @property bool empty() const
+        {
+            return _done;
+        }
+
+    private:
+        T _lastNode;
+        T _nextNode;
+        bool _done;
+    }
+}
+
+mixin template DLinkFunctions(T)
+if (isDLink!T)
+{
+    bool hasPrev(T lastNode, T checkNode) nothrow @safe
     {
-        return _nextNode;
+        return checkNode !is lastNode._prev;
     }
 
-    @property bool empty() const nothrow
+    bool hasNext(T lastNode, T checkNode) nothrow @safe
     {
-        return _done;
+        return checkNode !is lastNode._next;
     }
 
-private:
-    T _lastNode;
-    T _nextNode;
-    bool _done;
-}
-
-pragma (inline, true)
-bool dlinkHasPrev(T)(T lastNode, T checkNode) const
-if (isDLink!T)
-{
-    return checkNode !is lastNode._prev;
-}
-
-pragma (inline, true)
-bool dlinkHasNext(T)(T lastNode, T checkNode) const
-if (isDLink!T)
-{
-    return checkNode !is lastNode._next;
-}
-
-T dlinkInsertAfter(T)(T refNode, T newNode)
-if (isDLink!T)
-in 
-{
-    assert(refNode !is null);
-    assert(refNode._next !is null);
-}
-do
-{
-    newNode._next = refNode._next;
-    newNode._prev = refNode;
-    refNode._next._prev = newNode;
-    refNode._next = newNode;
-    return newNode;
-}
-
-T dlinkInsertEnd(T)(ref T lastNode, T newNode)
-if (isDLink!T)
-{
-    if (lastNode is null)
+    T insertAfter(T refNode, T newNode) nothrow @safe
+    in 
     {
-        newNode._next = newNode;
-        newNode._prev = newNode;
+        assert(refNode !is null);
+        assert(refNode._next !is null);
     }
-    else
-        dlinkInsertAfter(lastNode, newNode);
-    lastNode = newNode;
-    return newNode;
-}
-
-T dlinkRemove(T)(ref T lastNode, T oldNode)
-if (isDLink!T)
-{
-    if (oldNode._next is oldNode)
-        lastNode = null;
-    else
+    do
     {
-        oldNode._next._prev = oldNode._prev;
-        oldNode._prev._next = oldNode._next;
-        if (oldNode is lastNode)
-            lastNode = cast(T)oldNode._prev;
+        newNode._next = refNode._next;
+        newNode._prev = refNode;
+        refNode._next._prev = newNode;
+        refNode._next = newNode;
+        return newNode;
     }
-    oldNode._next = null;
-    oldNode._prev = null;
-    return oldNode;
+
+    T insertEnd(ref T lastNode, T newNode) nothrow @safe
+    {
+        if (lastNode is null)
+        {
+            newNode._next = newNode;
+            newNode._prev = newNode;
+        }
+        else
+            insertAfter(lastNode, newNode);
+        lastNode = newNode;
+        return newNode;
+    }
+
+    T remove(ref T lastNode, T oldNode) nothrow @safe
+    {
+        if (oldNode._next is oldNode)
+            lastNode = null;
+        else
+        {
+            oldNode._next._prev = oldNode._prev;
+            oldNode._prev._next = oldNode._next;
+            if (oldNode is lastNode)
+                lastNode = cast(T)(oldNode._prev);
+        }
+        oldNode._next = null;
+        oldNode._prev = null;
+        return oldNode;
+    }
 }

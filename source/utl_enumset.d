@@ -365,12 +365,12 @@ public:
         return Range(this);
     }
 
-    auto ref exclude(E value)
+    ref exclude(E value) return
     {
         return opOpAssign!"-"(value);
     }
 
-    auto ref include(E value)
+    ref include(E value) return
     {
         return opOpAssign!"+"(value);
     }
@@ -409,7 +409,7 @@ public:
         return _values != 0 && (_values & bit(value)) != 0;
     }
 
-    auto ref set(E value, bool opSet)
+    ref set(E value, bool opSet) return
     {
         if (opSet)
             return opOpAssign!"+"(value);
@@ -475,7 +475,7 @@ public:
             }
 
             // Get the string element
-            auto value = values[begin .. lastSpace == size_t.max ? pos : lastSpace];
+            auto value = values[begin..lastSpace == size_t.max ? pos : lastSpace];
 
             // Skip comma
             ++pos;
