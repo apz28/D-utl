@@ -75,17 +75,19 @@ if (isDLink!T)
 mixin template DLinkFunctions(T)
 if (isDLink!T)
 {
-    bool hasPrev(T lastNode, T checkNode) nothrow @safe
+    pragma (inline, true)
+    final bool hasPrev(T lastNode, T checkNode) nothrow @safe
     {
         return checkNode !is lastNode._prev;
     }
 
-    bool hasNext(T lastNode, T checkNode) nothrow @safe
+    pragma (inline, true)
+    final bool hasNext(T lastNode, T checkNode) nothrow @safe
     {
         return checkNode !is lastNode._next;
     }
 
-    T insertAfter(T refNode, T newNode) nothrow @safe
+    final T insertAfter(T refNode, T newNode) nothrow @safe
     in 
     {
         assert(refNode !is null);
@@ -100,7 +102,7 @@ if (isDLink!T)
         return newNode;
     }
 
-    T insertEnd(ref T lastNode, T newNode) nothrow @safe
+    final T insertEnd(ref T lastNode, T newNode) nothrow @safe
     {
         if (lastNode is null)
         {
@@ -113,7 +115,7 @@ if (isDLink!T)
         return newNode;
     }
 
-    T remove(ref T lastNode, T oldNode) nothrow @safe
+    final T remove(ref T lastNode, T oldNode) nothrow @safe
     {
         if (oldNode._next is oldNode)
             lastNode = null;
