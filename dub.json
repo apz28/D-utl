@@ -1,5 +1,7 @@
 {
 	"name": "pham_utility",
+	"targetName": "pham_utility",
+	"targetType": "library",	
 	"description": "Various utility modules.",
 	"authors": ["An Pham"],
 	"homepage": "",
