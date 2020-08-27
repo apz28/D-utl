@@ -9,7 +9,7 @@
  *
  */
 
-module pham.utl.array;
+module pham.utl_array;
 
 import std.range.primitives : ElementType;
 import std.traits : isDynamicArray, isStaticArray, lvalueOf;
@@ -385,7 +385,7 @@ struct UnshrinkArray(T)
 nothrow:
 
 public:
-    this(size_t capacity)
+    this(size_t capacity) pure
     {
         if (capacity)
             _items.reserve(capacity);
@@ -407,8 +407,9 @@ public:
         return !empty;
     }
 
-    /** Returns range interface
-    */
+    /**
+     * Returns range interface
+     */
     T[] opIndex() return
     {
         return _items;
@@ -434,9 +435,10 @@ public:
         _items[index] = item;
     }
 
-    void clear() @trusted
+    ref typeof(this) clear() return @trusted
     {
         _items.length = 0;
+        return this;
     }
 
     T[] dup()
@@ -447,7 +449,7 @@ public:
             return null;
     }
 
-    ptrdiff_t indexOf(in T item) @trusted
+    ptrdiff_t indexOf(scope const T item) @trusted
     {
         for (ptrdiff_t i = 0; i < _items.length; ++i)
         {
@@ -464,7 +466,7 @@ public:
         return item;
     }
 
-    T remove(in T item)
+    T remove(scope const T item)
     {
         const i = indexOf(item);
         if (i >= 0)
@@ -486,7 +488,7 @@ public:
         return length == 0;
     }
 
-    @property size_t length() const nothrow 
+    @property size_t length() const nothrow
     {
         return _items.length;
     }
@@ -511,7 +513,7 @@ private:
 
 nothrow @safe unittest
 {
-    import pham.utl.test;
+    import pham.utl_test;
     dgWriteln("unittest utl_array.arrayOfChar");
 
     assert(arrayOfChar!char('0', 0) == []);
@@ -521,7 +523,7 @@ nothrow @safe unittest
 
 nothrow @safe unittest
 {
-    import pham.utl.test;
+    import pham.utl_test;
     dgWriteln("unittest utl_array.IndexedArray");
 
     auto a = IndexedArray!(int, 2)(0);
@@ -623,7 +625,7 @@ nothrow @safe unittest
 
 nothrow @safe unittest
 {
-    import pham.utl.test;
+    import pham.utl_test;
     dgWriteln("unittest utl_array.UnshrinkArray");
 
     auto a = UnshrinkArray!int(0);

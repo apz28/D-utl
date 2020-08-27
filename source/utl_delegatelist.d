@@ -9,9 +9,9 @@
  *
  */
 
-module pham.utl.delegatelist;
+module pham.utl_delegatelist;
 
-import pham.utl.array;
+import pham.utl_array;
 
 struct DelegateList(Args...)
 {
@@ -89,13 +89,13 @@ private:
 
 unittest // DelegateList
 {
-    import std.stdio : writeln;
-    writeln("unittest utl_delegate.DelegateList");
+    import pham.utl_test;
+    dgWriteln("unittest utl_delegate.DelegateList");
 
     string eName;
     int eValue;
 
-    struct S1
+    static struct S1
     {
         int a;
         void accumulate(string name, int value) nothrow 

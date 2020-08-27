@@ -9,7 +9,7 @@
  *
  */
 
-module pham.utl.dlinklist;
+module pham.utl_dlinklist;
 
 nothrow @safe:
 
@@ -30,7 +30,7 @@ if (isDLink!T)
     nothrow @safe:
 
     public:
-        this(T lastNode)
+        this(T lastNode) pure
         {
             this._lastNode = lastNode;
             if (lastNode is null)
@@ -39,7 +39,12 @@ if (isDLink!T)
                 _nextNode = cast(T)(lastNode._next);
         }
 
-        void dispose()
+        ~this()
+        {
+            dispose(false);
+        }
+
+        void dispose(bool disposing = true)
         {
             _lastNode = null;
             _nextNode = null;
@@ -76,19 +81,19 @@ mixin template DLinkFunctions(T)
 if (isDLink!T)
 {
     pragma (inline, true)
-    final bool hasPrev(T lastNode, T checkNode) nothrow @safe
+    final bool hasPrev(scope T lastNode, scope T checkNode) const nothrow @safe
     {
         return checkNode !is lastNode._prev;
     }
 
     pragma (inline, true)
-    final bool hasNext(T lastNode, T checkNode) nothrow @safe
+    final bool hasNext(scope T lastNode, scope T checkNode) const nothrow @safe
     {
         return checkNode !is lastNode._next;
     }
 
     final T insertAfter(T refNode, T newNode) nothrow @safe
-    in 
+    in
     {
         assert(refNode !is null);
         assert(refNode._next !is null);

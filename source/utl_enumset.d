@@ -9,11 +9,12 @@
  *
  */
 
-module pham.utl.enumset;
+module pham.utl_enumset;
 
 import std.conv : to;
+import std.exception : assumeWontThrow;
 import std.meta : allSatisfy;
-import std.traits : EnumMembers, isIntegral;
+import std.traits : EnumMembers, isIntegral, Unqual;
 
 nothrow @safe:
 
@@ -23,12 +24,13 @@ if (is(E == enum))
     size_t res;
     foreach (i; EnumMembers!E)
         ++res;
-    return res;    
+    return res;
 }
 
-/** Detect whether an enum is of integral type and has distinct bit flag values
-    Ex: enum E {e1 = 1 << 0, e2 = 1 << 1,... }
-*/
+/**
+ * Detect whether an enum is of integral type and has distinct bit flag values
+ *   Ex: enum E {e1 = 1 << 0, e2 = 1 << 1,... }
+ */
 template isBitEnum(E)
 {
     static if (is(E Base == enum) && isIntegral!Base)
@@ -51,9 +53,10 @@ template isBitEnum(E)
     }
 }
 
-/** Detect whether an enum is of integral type and has increasing values
-    Ex: enum E {e1 = 1, e2 = 2, e3 = 10,... }
-*/
+/**
+ * Detect whether an enum is of integral type and has increasing values
+ *   Ex: enum E {e1 = 1, e2 = 2, e3 = 10,... }
+ */
 template isOrderedEnum(E)
 {
     static if (is(E Base == enum) && isIntegral!Base)
@@ -76,9 +79,10 @@ template isOrderedEnum(E)
     }
 }
 
-/** Detect whether an enum is of integral type and has increasing sequence values
-    Ex: enum E {e1 = 0, e2 = 1, e3 = 2,... }
-*/
+/**
+ * Detect whether an enum is of integral type and has increasing sequence values
+ *   Ex: enum E {e1 = 0, e2 = 1, e3 = 2,... }
+ */
 template isSequenceEnum(E)
 {
     static if (is(E Base == enum) && isIntegral!Base)
@@ -113,15 +117,19 @@ template EnumSetType(E)
 if (isEnumSet!E)
 {
     static if (isBitEnum!E)
+    {
         static if (E.max <= uint.max)
             alias EnumSetType = uint;
         else
             alias EnumSetType = ulong;
+    }
     else
+    {
         static if (count!E() <= uint.sizeof * 8)
             alias EnumSetType = uint;
         else
             alias EnumSetType = ulong;
+    }
 }
 
 auto bit(E)(E value) pure
@@ -134,11 +142,11 @@ if (isEnumSet!E)
     else
     {
         size_t at;
-        foreach (i; EnumMembers!E)
+        foreach (e; EnumMembers!E)
         {
-            if (i == value)
+            if (e == value)
                 return cast(EnumSetType!E)1 << at;
-            ++at;
+            at++;
         }
         assert(0);
     }
@@ -152,11 +160,11 @@ if (isEnumSet!E)
     else
     {
         size_t at;
-        foreach (i; EnumMembers!E)
+        foreach (e; EnumMembers!E)
         {
-            if (i == value)
+            if (e == value)
                 return at;
-            ++at;
+            at++;
         }
         assert(0);
     }
@@ -165,27 +173,13 @@ if (isEnumSet!E)
 E toEnum(E)(string value, E emptyValue = E.init) pure
 if (is(E Base == enum))
 {
-    try
-    {
-        return value.length != 0 ? to!E(value) : emptyValue;
-    }
-    catch (Exception)
-    {
-        assert(0);
-    }
+    return value.length != 0 ? assumeWontThrow(to!E(value)) : emptyValue;
 }
 
 string toName(E)(E value) pure
 if (is(E Base == enum))
 {
-    try
-    {
-        return to!string(value);
-    }
-    catch (Exception)
-    {
-        assert(0);
-    }
+    return assumeWontThrow(to!string(value));
 }
 
 struct EnumSet(E)
@@ -202,14 +196,14 @@ public:
     nothrow @safe:
 
     public:
-        this(EnumSet!E values)
+        this(EnumSet!E values) pure
         {
             if (!values.empty)
             {
-                foreach (i; EnumMembers!E)
+                foreach (e; EnumMembers!E)
                 {
-                    if (values.on(i))
-                        this._values[this._length++] = i;
+                    if (values.on(e))
+                        this._values[this._length++] = e;
                 }
             }
         }
@@ -260,55 +254,62 @@ public:
     }
 
 public:
-    this(E value)
+    this(E value) pure
     {
-        _values = bit(value);
+        this._values = bit(value);
     }
 
-    this(const(E)[] values)
+    this(const(E)[] values) pure
     {
         this._values = 0;
-        foreach (i; values)
-            this._values |= bit(i);
+        foreach (e; values)
+            this._values |= bit(e);
     }
 
-    this(V...)(V values)
+    this(V...)(V values) pure
     if (allSatisfy!(isEnumSet, V))
     {
         this._values = 0;
-        foreach (i; values)
-            this._values |= bit(i);
+        foreach (e; values)
+            this._values |= bit(e);
     }
 
-    bool opCast(B: bool)() const
+    bool opCast(C: bool)() const pure
     {
         return _values != 0;
     }
 
-    auto ref opAssign(E value)
+    // Temporary hack until bug http://d.puremagic.com/issues/show_bug.cgi?id=5747 is fixed.
+    EnumSet!E opCast(T)() const
+    if (is(Unqual!T == EnumSet!E))
     {
-        _values = bit(value);
         return this;
     }
 
-    auto ref opAssign(const(E)[] values)
+    ref typeof(this) opAssign(E value) pure
+    {
+        this._values = bit(value);
+        return this;
+    }
+
+    ref typeof(this) opAssign(const(E)[] values) pure
     {
         this._values = 0;
-        foreach (i; values)
-            this._values |= bit(i);
+        foreach (e; values)
+            this._values |= bit(e);
         return this;
     }
 
-    auto ref opAssign(V...)(V values)
+    ref typeof(this) opAssign(V...)(V values) pure
     if (allSatisfy!(isEnumSet, V))
     {
         this._values = 0;
-        foreach (i; values)
-            this._values |= bit(i);
+        foreach (e; values)
+            this._values |= bit(e);
         return this;
     }
 
-    auto ref opOpAssign(string op)(E value)
+    ref typeof(this) opOpAssign(string op)(E value) pure
     if (op == "^" || op == "-" || op == "|" || op == "+")
     {
         static if (op == "^" || op == "-")
@@ -318,10 +319,10 @@ public:
         else
             static assert(0);
 
-        return this;       
+        return this;
     }
 
-    auto ref opOpAssign(string op)(EnumSet!E source) return
+    ref typeof(this) opOpAssign(string op)(EnumSet!E source) pure return
     if (op == "^" || op == "-" || op == "|" || op == "+" || op == "&" || op == "*")
     {
         static if (op == "^" || op == "-")
@@ -336,27 +337,27 @@ public:
         return this;
     }
 
-    auto opBinary(string op)(E value) const
+    typeof(this) opBinary(string op)(E value) const pure
     if (op == "^" || op == "-" || op == "|" || op == "+")
     {
         EnumSet!E res = this;
         return res.opOpAssign!op(value);
     }
 
-    auto opBinary(string op)(EnumSet!E source) const
+    typeof(this) opBinary(string op)(EnumSet!E source) const pure
     if (op == "^" || op == "-" || op == "|" || op == "+" || op == "&" || op == "*")
     {
         EnumSet!E res = this;
         return res.opOpAssign!op(source);
     }
 
-    bool opBinaryRight(string op : "in")(E value) const
+    bool opBinaryRight(string op : "in")(E value) const pure
     {
         return on(value);
     }
 
-    bool opEquals()(auto ref const EnumSet!E source) const
-    { 
+    bool opEquals()(auto ref const EnumSet!E source) const pure
+    {
         return _values == source.values;
     }
 
@@ -365,18 +366,24 @@ public:
         return Range(this);
     }
 
-    ref exclude(E value) return
+    ref typeof(this) clear() pure return
+    {
+        _values = 0;
+        return this;
+    }
+
+    ref typeof(this) exclude(E value) pure return
     {
         return opOpAssign!"-"(value);
     }
 
-    ref include(E value) return
+    ref typeof(this) include(E value) pure return
     {
         return opOpAssign!"+"(value);
     }
 
     pragma (inline, true)
-    bool any(const(E)[] source) const
+    bool any(const(E)[] source) const pure
     {
         foreach (i; source)
         {
@@ -386,30 +393,30 @@ public:
         return false;
     }
 
-    bool any(V...)(V source) const
+    bool any(V...)(V source) const pure
     if (allSatisfy!(isEnumSet, V))
     {
-        foreach (i; source)
+        foreach (e; source)
         {
-            if (on(i))
+            if (on(e))
                 return true;
         }
         return false;
     }
 
     pragma (inline, true)
-    bool off(E value) const
+    bool off(E value) const pure
     {
         return _values == 0 || (_values & bit(value)) == 0;
     }
 
     pragma (inline, true)
-    bool on(E value) const
+    bool on(E value) const pure
     {
         return _values != 0 && (_values & bit(value)) != 0;
     }
 
-    ref set(E value, bool opSet) return
+    ref typeof(this) set(E value, bool opSet) pure return
     {
         if (opSet)
             return opOpAssign!"+"(value);
@@ -423,7 +430,7 @@ public:
         Returns:
             Number of failed to convert a member string
     */
-    size_t fromString(const(char)[] values)
+    size_t fromString(const(char)[] values) pure
     {
         import std.ascii : isWhite;
         import std.conv : to;
@@ -445,13 +452,13 @@ public:
         bool skipSpaces()
         {
             while (pos < len && isWhite(values[pos]))
-                ++pos;
+                pos++;
             return pos < len;
         }
 
         // Skip preceeding set indicator?
         if (skipSpaces() && values[pos] == '[')
-            ++pos;        
+            pos++;
 
         // Empty set?
         if (pos >= len)
@@ -471,14 +478,14 @@ public:
                 }
                 else if (lastSpace != size_t.max)
                     lastSpace = size_t.max;
-                ++pos;
+                pos++;
             }
 
             // Get the string element
             auto value = values[begin..lastSpace == size_t.max ? pos : lastSpace];
 
             // Skip comma
-            ++pos;
+            pos++;
 
             try
             {
@@ -487,14 +494,14 @@ public:
              }
              catch (Exception e)
              {
-                 ++fails;
+                 fails++;
              }
         }
 
         return fails;
     }
 
-    ulong toHash()
+    ulong toHash() pure
     {
         return _values;
     }
@@ -504,41 +511,33 @@ public:
     string toString()
     {
         import std.array : Appender;
-        import std.conv : to;
 
         if (empty)
             return "[]";
 
-        try
+        size_t count;
+        auto res = Appender!string();
+        res.reserve(500);
+        res.put('[');
+        foreach(e; EnumMembers!E)
         {
-            size_t count;
-            auto res = Appender!string();
-            res.reserve(500);
-            res.put('[');
-            foreach(i; EnumMembers!E)
+            if (on(e))
             {
-                if (on(i))
-                {
-                    if (++count != 1)
-                        res.put(',');
-                    res.put(to!string(i));
-                }
+                if (++count != 1)
+                    res.put(',');
+                res.put(toName(e));
             }
-            res.put(']');
-            return res.data;
         }
-        catch (Exception e)
-        {
-            assert(0);
-        }
+        res.put(']');
+        return res.data;
     }
 
-    @property bool empty() const
+    @property bool empty() const pure
     {
         return _values == 0;
     }
 
-    @property EnumSetType!E values() const
+    @property EnumSetType!E values() const pure
     {
         return _values;
     }
@@ -555,12 +554,12 @@ nothrow @safe:
 public:
     enum size = count!E();
 
-    static struct Entry 
+    static struct Entry
     {
     nothrow @safe:
 
     public:
-        this(E e, T v)
+        this(E e, T v) pure
         {
             this.e = e;
             this.v = v;
@@ -572,19 +571,19 @@ public:
     }
 
 public:
-    this(V...)(V values)
+    this(V...)(V values) pure
     if (allSatisfy!(isEntry, V))
     {
         foreach (i; values)
             this._values[ord(i.e)] = i.v;
     }
-    
-    T opIndex(E value) const
-    { 
-        return _values[ord(value)]; 
+
+    T opIndex(E value) const pure
+    {
+        return _values[ord(value)];
     }
 
-    T opIndexAssign(T value, E enumValue)
+    T opIndexAssign(T value, E enumValue) pure
     {
         return _values[ord(enumValue)] = value;
     }
@@ -605,7 +604,7 @@ public:
         return _values[ord(e)] = value;
     }
 
-    bool exist(T value)
+    bool exist(T value) const pure
     {
         foreach (i; EnumMembers!E)
         {
@@ -616,7 +615,7 @@ public:
         return false;
     }
 
-    E get(T value, E defaultValue = E.min)
+    E get(T value, E defaultValue = E.min) const pure
     {
         foreach (i; EnumMembers!E)
         {
@@ -627,7 +626,7 @@ public:
         return defaultValue;
     }
 
-    @property size_t length() const
+    @property size_t length() const pure
     {
         return size;
     }
@@ -644,7 +643,7 @@ private size_t maxBits() pure
 
 nothrow @safe unittest // toEnum
 {
-    import pham.utl.test;
+    import pham.utl_test;
     dgWriteln("unittest utl_enumset.toEnum");
 
     enum EnumTestOrder
@@ -663,7 +662,7 @@ nothrow @safe unittest // toEnum
 
 nothrow @safe unittest // toName
 {
-    import pham.utl.test;
+    import pham.utl_test;
     dgWriteln("unittest utl_enumset.toName");
 
     enum EnumTestOrder
@@ -681,7 +680,7 @@ nothrow @safe unittest // toName
 nothrow @safe unittest // EnumSet
 {
     import std.traits : OriginalType;
-    import pham.utl.test;
+    import pham.utl_test;
     dgWriteln("unittest utl_enumset.EnumSet");
 
     //pragma(msg, size_t.sizeof * 8, '.', size_t.max);
@@ -761,9 +760,9 @@ nothrow @safe unittest // EnumSet
     }
 
     /*
-    pragma(msg, 
+    pragma(msg,
         "EnumTestSkip ", EnumSetType!EnumTestOrder,
-        ", min: ", EnumTestOrder.min + 0, 
+        ", min: ", EnumTestOrder.min + 0,
         ", max: ", EnumTestOrder.max + 0,
         ", count: ", count!EnumTestOrder(),
         ", isEnumSet: ", isEnumSet!(EnumTestOrder),
@@ -781,11 +780,11 @@ nothrow @safe unittest // EnumSet
         two,
         three
     }
-    
+
     /*
-    pragma(msg, 
+    pragma(msg,
         "EnumTestSequence ", EnumSetType!EnumTestSequence,
-        ", min: ", EnumTestSequence.min + 0, 
+        ", min: ", EnumTestSequence.min + 0,
         ", max: ", EnumTestSequence.max + 0,
         ", count: ", count!EnumTestSequence(),
         ", isEnumSet: ", isEnumSet!(EnumTestSequence),
@@ -802,9 +801,9 @@ nothrow @safe unittest // EnumSet
     }
 
     /*
-    pragma(msg, 
+    pragma(msg,
         "EnumTestBit ", EnumSetType!EnumTestBit,
-        ", min: ", EnumTestBit.min + 0, 
+        ", min: ", EnumTestBit.min + 0,
         ", max: ", EnumTestBit.max + 0,
         ", count: ", count!EnumTestBit(),
         ", isEnumSet: ", isEnumSet!(EnumTestBit),
@@ -861,8 +860,8 @@ nothrow @safe unittest // EnumSet
 }
 
 nothrow @safe unittest // EnumArray
-{    
-    import pham.utl.test;
+{
+    import pham.utl_test;
     dgWriteln("unittest utl_enumset.EnumArray");
 
     enum EnumTest
@@ -871,8 +870,8 @@ nothrow @safe unittest // EnumArray
         two,
         max
     }
-    
-    alias EnumTestInt = EnumArray!(EnumTest, int); 
+
+    alias EnumTestInt = EnumArray!(EnumTest, int);
 
     EnumTestInt testInt = EnumTestInt(
         EnumTestInt.Entry(EnumTest.one, 1),
@@ -897,7 +896,7 @@ nothrow @safe unittest // EnumArray
     assert(testInt.get(3) == EnumTest.min);
 
 
-    alias EnumTestString = EnumArray!(EnumTest, string); 
+    alias EnumTestString = EnumArray!(EnumTest, string);
 
     EnumTestString testString = EnumTestString(
         EnumTestString.Entry(EnumTest.one, "1"),

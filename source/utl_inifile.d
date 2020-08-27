@@ -9,7 +9,7 @@
  *
  */
 
-module pham.utl.inifile;
+module pham.utl_inifile;
 
 import std.range : ElementType, isInputRange, isOutputRange;
 import std.format : format;
@@ -19,8 +19,8 @@ import std.uni : sicmp;
 import std.file : exists;
 import std.stdio : File;
 
-import pham.utl.array : removeAt;
-import pham.utl.delegatelist;
+import pham.utl_array : removeAt;
+import pham.utl_delegatelist;
 
 enum IniFileOpenMode
 {
@@ -43,6 +43,8 @@ enum IniFileLineKind
 
 struct IniFileMessage
 {
+nothrow @safe:
+
     static immutable eUndefinedSection = "Section is not defined.";
     static immutable eInvalidKeyName = "Malform key name";
     static immutable eInvalidSectionName = "Invalid section name: %s.";
@@ -58,6 +60,8 @@ class IniFileException : Exception
 
 struct Ini
 {
+nothrow @safe:
+
 public:
 	static Ini opCall(string msg)
     {
@@ -100,6 +104,8 @@ public:
 
     static struct Value
     {
+    nothrow @safe:
+    
         Line name;
         Line value;
         Line[] comments;
@@ -107,17 +113,19 @@ public:
 
     static struct Section
     {
+    nothrow @safe:
+    
         Line name;
         Value[] values;
         Line[] comments;
 
-        void clear() nothrow @safe
+        void clear()
         {
             values.length = 0;
             comments.length = 0;
         }
 
-        Line getValue(Line valueName, Line defaultValue = null) nothrow @safe
+        Line getValue(Line valueName, Line defaultValue = null)
         {
             const i = indexOfName(valueName);
             if (i >= 0)
@@ -126,7 +134,7 @@ public:
                 return defaultValue;
         }
 
-        ptrdiff_t indexOfName(in Line valueName) nothrow @safe
+        ptrdiff_t indexOfName(in Line valueName)
         {
             foreach (i, ref e; values)
             {
@@ -137,7 +145,7 @@ public:
             return -1;
         }
 
-        bool removeValue(Line removedName) nothrow @safe
+        bool removeValue(Line removedName)
         {
              const i = indexOfName(removedName);
              if (i >= 0)
@@ -149,7 +157,7 @@ public:
                 return false;
         }
 
-        void setValue(Line valueName, Line value) nothrow @safe
+        void setValue(Line valueName, Line value)
         in
         {
             assert(valueName.length != 0);
@@ -163,7 +171,7 @@ public:
                 values ~= Value(valueName, value, null);
         }
 
-        bool setValueComment(L...)(Line valueName, L valueComments) nothrow @safe
+        bool setValueComment(L...)(Line valueName, L valueComments)
         {
             const i = indexOfName(valueName);
             if (i >= 0)
@@ -758,32 +766,32 @@ public:
         }
     }
 
-    @property bool changed() const nothrow
+    @property final bool changed() const nothrow @safe
     {
         return _changed;
     }
 
-    @property const(char)[] inifileName() const nothrow
+    @property final const(char)[] inifileName() const nothrow @safe
     {
         return _inifileName;
     }
 
-    @property bool loadedError() const nothrow
+    @property final bool loadedError() const nothrow @safe
     {
         return _loadedError;
     }
 
-    @property bool needToSave() const nothrow
+    @property final bool needToSave() const nothrow @safe
     {
         return changed && _sections.length != 0 && inifileName.length != 0;
     }
 
-    @property IniFileOpenMode openMode() const nothrow
+    @property final IniFileOpenMode openMode() const nothrow @safe
     {
         return _openMode;
     }
 
-    @property Section[] sections() nothrow
+    @property final Section[] sections() nothrow @safe
     {
         return _sections;
     }
@@ -809,6 +817,8 @@ protected:
 private:
     static struct FoundSection
     {
+    nothrow @safe:
+    
         Line name;
         ptrdiff_t index;
     }
@@ -852,8 +862,8 @@ string loadMember(T)() @safe
 
 size_t loadMembers(T)(IniFile inifile, IniFile.Line sectionName, ref T t)
 {
-    import std.string : split;
     import std.conv : to;
+    import std.string : split;
 
     auto names = inifile.getNames(sectionName);
     if (names.length != 0)
@@ -872,8 +882,8 @@ size_t loadMembers(T)(IniFile inifile, IniFile.Line sectionName, ref T t)
 
 string saveMember(T)(T t)
 {
-    import std.traits : fullyQualifiedName;
 	import std.format : format;
+    import std.traits : fullyQualifiedName;
 
     static if (isBasicType!T || isSomeString!T)
         return format("%s", t);
@@ -922,8 +932,8 @@ size_t saveMembers(T)(IniFile inifile, IniFile.Line sectionName, ref T t)
 
 unittest // IniFile.parseSection
 {
-    import std.stdio : writeln;
-    writeln("unittest utl_inifile.IniFile.parseSection");
+    import pham.utl_test;
+    dgWriteln("unittest utl_inifile.IniFile.parseSection");
 
     IniFile.Line name;
 
@@ -972,8 +982,8 @@ unittest // IniFile.parseSection
 
 unittest // IniFile.parseNameValue
 {
-    import std.stdio : writeln;
-    writeln("unittest utl_inifile.IniFile.parseNameValue");
+    import pham.utl_test;
+    dgWriteln("unittest utl_inifile.IniFile.parseNameValue");
 
     IniFile.Line name, value;
 
@@ -1047,8 +1057,8 @@ unittest // IniFile.parseNameValue
 
 unittest // IniFile
 {
-    import std.stdio : writeln;
-    writeln("unittest utl_inifile.IniFile");
+    import pham.utl_test;
+    dgWriteln("unittest utl_inifile.IniFile");
 
     IniFile inifile = new IniFile("unittestIniFile.ini", IniFileOpenMode.write);
 
@@ -1122,7 +1132,7 @@ struct Foo
 
 unittest // saveMembers & loadMembers
 {
-    import pham.utl.test;
+    import pham.utl_test;
     dgWriteln("unittest utl_inifile.saveMembers & utl_inifile.loadMembers");
 
     IniFile inifile = new IniFile("unittestIniFile.ini", IniFileOpenMode.write);

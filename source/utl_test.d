@@ -9,7 +9,7 @@
  *
  */
 
-module pham.utl.test;
+module pham.utl_test;
 
 nothrow @safe:
 
@@ -18,18 +18,72 @@ version (unittest)
     import std.digest : toHexString;
     import std.traits : isSomeChar;
 
+    void dgFunctionTrace(A...)(A args,
+        int line = __LINE__,
+        string functionName = __FUNCTION__)
+    {
+        scope (failure)
+            assert(0);
+
+        dgWrite(functionName, "(", line, ")");
+        if (args.length)
+        {
+            dgWrite(": ");
+            dgWriteln(args);
+        }
+        else
+            dgWriteln("");
+    }
+
+	static ubyte[] dgReadAllBinary(string fileName) nothrow @trusted
+    {
+		import std.stdio;
+		import std.file;
+
+		try
+        {
+			auto f = File(fileName);
+			f.seek(0, SEEK_END);
+			auto size = cast(size_t)f.tell();
+			f.seek(0, SEEK_SET);
+			auto result = new ubyte[size];
+			f.rawRead(result);
+			return result;
+		}
+		catch (Exception e)
+        {
+			dgWriteln("fileName=", fileName, ", e.msg=", e.msg);
+			return null;
+        }
+    }
+
+    string dgToString(size_t n) nothrow pure
+    {
+        import std.conv : to;
+
+        return to!string(n);
+    }
+
+    string dgToString(long n) nothrow pure
+    {
+        import std.conv : to;
+
+        return to!string(n);
+    }
+
+    string dgToString(const(ubyte)[] b) nothrow pure
+    {
+        return toHexString(b);
+    }
+
     void dgWrite(A...)(A args)
     {
         import std.stdio : write;
 
-        try
-        {
-            write(args);
-        }
-        catch (Exception)
-        {
+        scope (failure)
             assert(0);
-        }
+
+        debug write(args);
     }
 
     void dgWritef(Char, A...)(in Char[] fmt, A args)
@@ -37,33 +91,25 @@ version (unittest)
     {
         import std.stdio : writef;
 
-        try
-        {
-            writef(fmt, args);
-        }
-        catch (Exception)
-        {
+        scope (failure)
             assert(0);
-        }
+
+        debug writef(fmt, args);
     }
 
     void dgWriteln(A...)(A args)
     {
         import std.stdio : writeln;
 
-        try
-        {
-            writeln(args);
-        }
-        catch (Exception)
-        {
+        scope (failure)
             assert(0);
-        }
+
+        debug writeln(args);
     }
 
     void dgWriteln(const(char)[] prefix, const(ubyte)[] bytes)
     {
-        dgWriteln(prefix, toHexString(bytes));
+        debug dgWriteln(prefix, toHexString(bytes));
     }
 
     void dgWritefln(Char, A...)(in Char[] fmt, A args)
@@ -71,13 +117,9 @@ version (unittest)
     {
         import std.stdio : writefln;
 
-        try
-        {
-            writefln(fmt, args);
-        }
-        catch (Exception)
-        {
+        scope (failure)
             assert(0);
-        }
+
+        debug writefln(fmt, args);
     }
 }

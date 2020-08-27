@@ -9,7 +9,7 @@
  *
  */
 
-module pham.utl.dynlib;
+module pham.utl_dynlib;
 
 import std.format : format;
 import std.string : toStringz;
@@ -157,12 +157,12 @@ public:
         {
             if (!isLoaded)
             {
-                string err = format(DllMessage.notLoadedLibrary, _libName);
+                auto err = format(DllMessage.notLoadedLibrary, _libName);
                 throw new DllException(err, null, 0, _libName);
             }
             else
             {
-                string err = format(DllMessage.eLoadFunction, _libName, procName);
+                auto err = format(DllMessage.eLoadFunction, _libName, procName);
                 throw new DllException(err, null, 0, _libName);
             }
         }
@@ -230,21 +230,21 @@ public:
 
     /** Returns true if library was loaded
     */
-    @property bool isLoaded() const nothrow
+    @property final bool isLoaded() const nothrow @safe
     {
         return (_libHandle !is null);
     }
 
     /** Returns native handle of the loaded library; otherwise null
     */
-    @property DllHandle libHandle() nothrow
+    @property final DllHandle libHandle() nothrow @safe
     {
         return _libHandle;
     }
 
     /** Name of the library
     */
-    @property string libName() const nothrow
+    @property final string libName() const nothrow @safe
     {
         return _libName;
     }
@@ -267,8 +267,8 @@ private:
 
 unittest // DllLibrary
 {
-    import std.stdio : writeln;
-    writeln("unittest utl_dynlib.DllLibrary");
+    import pham.utl_test;
+    dgWriteln("unittest utl_dynlib.DllLibrary");
 
     version (Windows)
     {

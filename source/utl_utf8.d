@@ -9,7 +9,7 @@
  *
  */
 
-module pham.utl.utf8;
+module pham.utl_utf8;
 
 nothrow @safe:
 
@@ -137,7 +137,7 @@ dchar utf8NextChar(const(char)[] str, ref size_t pos, out size_t cnt)
 
 nothrow @safe unittest // inplaceMoveToLeft
 {
-    import pham.utl.test;
+    import pham.utl_test;
     dgWriteln("unittest utl_utf8.inplaceMoveToLeft");
 
     auto chars = cast(ubyte[])"1234567890".dup;
