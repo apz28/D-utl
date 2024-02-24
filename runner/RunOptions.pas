@@ -12,7 +12,7 @@ uses
 //{$define RedirectStdOut}
 
 const
-  CAllOpt = 'All';
+  CAllOpt = 'all';
 
   CInfoNam = 'Info';
   CInfos: array[0..2] of string = ('0', '1', '2');
@@ -29,8 +29,9 @@ const
   CDMDNam = 'DMD';
   CRunNam = 'Run';
 
-  COptSec = 'Options';
   CFilSec = 'Files';
+  COptSec = 'Options';
+  CPerSec = 'Options Build_permutation';
 
 type
   TOptions = record
@@ -52,21 +53,21 @@ type
   // [Files X86_32] [Files X86_64]
   TDMDOptions = class(TObject)
   private
-    CheckFiles: TStringList;
-    CheckOptions: TStringList;
+    function AddFile(const AFiles, ACheckFiles: TStringList; const AFile: string): Boolean;
+    function AddOption(const AOptions, ACheckOptions: TStringList; const AOption: string): Boolean;
+    function GetDMDArguments: string;
+    procedure ReadFiles(const AFiles, ACheckFiles: TStringList; const AProjectIniFile: TMemIniFile; const ASectionName: string);
+    procedure ReadOptions(const AOptions, ACheckOptions: TStringList; const AProjectIniFile: TMemIniFile; const ASectionName: string);
   public
     Options: TOptions;
+    PermutationOptions: array of TStringList;
     RunFiles: TStringList;
     RunOptions: TStringList;
     constructor Create(const AOptions: TOptions);
     destructor Destroy; override;
-    function AddFile(const AFile: string): Boolean;
-    function AddOption(const AOption: string): Boolean;
     function BuildIt(const ADMD: string): Integer;
     function BuildInfo: string;
-    function GetDMDArguments: string;
-    procedure ReadFiles(const AProjectIniFile: TMemIniFile; const ASectionName: string);
-    procedure ReadOptions(const AProjectIniFile: TMemIniFile; const ASectionName: string);
+    function BuildPermutationIt(const APIndex: Integer; const ADMD: string): Integer;
     function RunIt(const ARun: string): Integer;
   end;
 
@@ -83,9 +84,9 @@ type
     Run: string;
     constructor Create;
     function GetDMDOptions: TDMDOptionsArray;
-    function ReadOptions(var Errors: string): Boolean;
+    function ReadCommandOptions(var Errors: string): Boolean;
     function SetOption(const AName, AValue: string): Boolean;
-    class function RunOptions: string;
+    class function RunOptions(const APrefix: string = #9): string;
   end;
 
 function AddLine(var Lines: string; const ALine: string): string;
@@ -247,7 +248,7 @@ end;
 
 function Run(const AExe, AArguments: string): Integer;
 var
-  ApplicationName, CommandLine, CurrentDirectory: WideString;
+  ApplicationName, CommandLine: WideString; // CurrentDirectory
   ApplicationNameP, CommandLineP, CurrentDirectoryP: PWideChar;
   PI: TProcessInformation;
   SA: TSecurityAttributes;
@@ -402,23 +403,23 @@ end;
 
 { TDMDOptions }
 
-function TDMDOptions.AddFile(const AFile: string): Boolean;
+function TDMDOptions.AddFile(const AFiles, ACheckFiles: TStringList; const AFile: string): Boolean;
 begin
-  Result := (Length(AFile) > 0) and (AFile[1] <> '#') and (CheckFiles.IndexOf(AFile) < 0);
+  Result := (Length(AFile) > 0) and (AFile[1] <> '#') and (ACheckFiles.IndexOf(AFile) < 0);
   if Result then
   begin
-    CheckFiles.Add(AFile);
-    RunFiles.Add(AFile);
+    ACheckFiles.Add(AFile);
+    AFiles.Add(AFile);
   end;
 end;
 
-function TDMDOptions.AddOption(const AOption: string): Boolean;
+function TDMDOptions.AddOption(const AOptions, ACheckOptions: TStringList; const AOption: string): Boolean;
 begin
-  Result := (Length(AOption) > 1) and (AOption[1] <> '#') and (CheckOptions.IndexOf(AOption) < 0);
+  Result := (Length(AOption) > 1) and (AOption[1] <> '#') and (ACheckOptions.IndexOf(AOption) < 0);
   if Result then
   begin
-    CheckOptions.Add(AOption);
-    RunOptions.Add(AOption);
+    ACheckOptions.Add(AOption);
+    AOptions.Add(AOption);
   end;
 end;
 
@@ -451,22 +452,36 @@ begin
     WriteLnStdOut('BuildIt failed with error code: ' + IntToStr(Result));
 end;
 
+function TDMDOptions.BuildPermutationIt(const APIndex: Integer; const ADMD: string): Integer;
+var
+  Ps: TStringList;
+  I: Integer;
+begin
+  Assert(APIndex < Length(PermutationOptions));
+
+  Ps := PermutationOptions[APIndex];
+  if (Ps = nil) or (Ps.Count <= 0) then
+  begin
+    Result := -1;
+    Exit;
+  end;
+
+  for I := 0 to Ps.Count - 1 do
+    RunOptions.Add(Ps[I]);
+  Result := BuildIt(ADMD);
+end;
+
 constructor TDMDOptions.Create(const AOptions: TOptions);
 const
   CFilesCapacity = 1000;
   COptionsCapacity = 100;
 var
+  S: string;
+  CheckFiles, CheckOptions, PermutationNames: TStringList;
   ProjectIniFile: TMemIniFile;
+  I: Integer;
 begin
   Options := AOptions;
-
-  CheckFiles := TStringList.Create;
-  CheckFiles.Capacity := CFilesCapacity;
-  CheckFiles.Sorted := True;
-
-  CheckOptions := TStringList.Create;
-  CheckOptions.Capacity := COptionsCapacity;
-  CheckOptions.Sorted := True;
 
   RunFiles := TStringList.Create;
   RunFiles.Capacity := CFilesCapacity;
@@ -475,38 +490,65 @@ begin
   RunOptions.Capacity := COptionsCapacity;
 
   ProjectIniFile := TMemIniFile.Create(AOptions.ProjectIniFileName);
+  PermutationNames := TStringList.Create;
+  CheckFiles := TStringList.Create;
+  CheckFiles.Sorted := True;
+  CheckOptions := TStringList.Create;
+  CheckOptions.Sorted := True;
   try
-    ReadOptions(ProjectIniFile, COptSec);
-    ReadOptions(ProjectIniFile, COptSec + ' ' + CBuildNam + '_' + AOptions.Build);
-    ReadOptions(ProjectIniFile, COptSec + ' ' + COSNam + '_' + AOptions.OS);
-    ReadOptions(ProjectIniFile, COptSec + ' ' + CX86Nam + '_' + AOptions.X86);
+    CheckOptions.Clear;
+    CheckOptions.Capacity := COptionsCapacity;
+    ReadOptions(RunOptions, CheckOptions, ProjectIniFile, COptSec);
+    ReadOptions(RunOptions, CheckOptions, ProjectIniFile, COptSec + ' ' + CBuildNam + '_' + AOptions.Build);
+    ReadOptions(RunOptions, CheckOptions, ProjectIniFile, COptSec + ' ' + COSNam + '_' + AOptions.OS);
+    ReadOptions(RunOptions, CheckOptions, ProjectIniFile, COptSec + ' ' + CX86Nam + '_' + AOptions.X86);
 
-    ReadFiles(ProjectIniFile, CFilSec);
-    ReadFiles(ProjectIniFile, CFilSec + ' ' + CBuildNam + '_' + AOptions.Build);
-    ReadFiles(ProjectIniFile, CFilSec + ' ' + COSNam + '_' + AOptions.OS);
-    ReadFiles(ProjectIniFile, CFilSec + ' ' + CX86Nam + '_' + AOptions.X86);
+    if AOptions.X86 = '32' then
+      AddOption(RunOptions, CheckOptions, '-m32')
+    else if AOptions.X86 = '64' then
+      AddOption(RunOptions, CheckOptions, '-m64');
+
+    if Length(AOptions.OS) > 0 then
+      AddOption(RunOptions, CheckOptions, '-os=' + AOptions.OS);
+
+    CheckFiles.Clear;
+    CheckFiles.Capacity := CFilesCapacity;
+    ReadFiles(RunFiles, CheckFiles, ProjectIniFile, CFilSec);
+    ReadFiles(RunFiles, CheckFiles, ProjectIniFile, CFilSec + ' ' + CBuildNam + '_' + AOptions.Build);
+    ReadFiles(RunFiles, CheckFiles, ProjectIniFile, CFilSec + ' ' + COSNam + '_' + AOptions.OS);
+    ReadFiles(RunFiles, CheckFiles, ProjectIniFile, CFilSec + ' ' + CX86Nam + '_' + AOptions.X86);
+
+    ProjectIniFile.ReadSectionValues(CPerSec, PermutationNames);
+    SetLength(PermutationOptions, PermutationNames.Count);
+    for I := 0 to PermutationNames.Count - 1 do
+    begin
+      S := PermutationNames[I];
+      if (Length(S) <= 0) or (S[1] = '#') then
+        Continue;
+
+      CheckOptions.Clear;
+      CheckOptions.Capacity := COptionsCapacity div 2;
+      PermutationOptions[I] := TStringList.Create;
+      PermutationOptions[I].Capacity := COptionsCapacity div 2;
+      ReadOptions(PermutationOptions[I], CheckOptions, ProjectIniFile, S);
+    end;
   finally
+    CheckOptions.Free;
+    CheckFiles.Free;
+    PermutationNames.Free;
     ProjectIniFile.Free;
   end;
-
-  CheckFiles.Clear;
-  CheckOptions.Clear;
-
-  if AOptions.X86 = '32' then
-    AddOption('-m32')
-  else if AOptions.X86 = '64' then
-    AddOption('-m64');
-
-  if Length(AOptions.OS) > 0 then
-    AddOption('-os=' + AOptions.OS);
 end;
 
 destructor TDMDOptions.Destroy;
+var
+  I: Integer;
 begin
-  FreeAndNil(CheckFiles);
-  FreeAndNil(CheckOptions);
   FreeAndNil(RunFiles);
   FreeAndNil(RunOptions);
+  for I := 0 to Length(PermutationOptions) - 1 do
+    FreeAndNil(PermutationOptions[I]);
+  SetLength(PermutationOptions, 0);
   inherited Destroy;
 end;
 
@@ -521,7 +563,7 @@ begin
     AddStr(Result, Quote(RunFiles[I]));
 end;
 
-procedure TDMDOptions.ReadFiles(const AProjectIniFile: TMemIniFile; const ASectionName: string);
+procedure TDMDOptions.ReadFiles(const AFiles, ACheckFiles: TStringList; const AProjectIniFile: TMemIniFile; const ASectionName: string);
 var
   Values: TStringList;
   I: Integer;
@@ -530,13 +572,13 @@ begin
   try
     AProjectIniFile.ReadSectionValues(ASectionName, Values);
     for I := 0 to Values.Count - 1 do
-      AddFile(Trim(Values[I]));
+      AddFile(AFiles, ACheckFiles, Trim(Values[I]));
   finally
     Values.Free;
   end;
 end;
 
-procedure TDMDOptions.ReadOptions(const AProjectIniFile: TMemIniFile; const ASectionName: string);
+procedure TDMDOptions.ReadOptions(const AOptions, ACheckOptions: TStringList; const AProjectIniFile: TMemIniFile; const ASectionName: string);
 var
   Values: TStringList;
   I: Integer;
@@ -545,7 +587,7 @@ begin
   try
     AProjectIniFile.ReadSectionValues(ASectionName, Values);
     for I := 0 to Values.Count - 1 do
-      AddOption(Trim(Values[I]));
+      AddOption(AOptions, ACheckOptions, Trim(Values[I]));
   finally
     Values.Free;
   end;
@@ -635,7 +677,7 @@ begin
   end;
 end;
 
-function TRunOptions.ReadOptions(var Errors: string): Boolean;
+function TRunOptions.ReadCommandOptions(var Errors: string): Boolean;
 // ParamStr(0)=program file name
 var
   S, N, V: string;
@@ -674,15 +716,15 @@ begin
   Result := ErrorCount = 0;
 end;
 
-class function TRunOptions.RunOptions: string;
+class function TRunOptions.RunOptions(const APrefix: string): string;
 begin
-  Result := 'ProjectFileName.ini';
-  AddLine(Result, CBuildNam + '=debug [' + ToCSV(CBuilds) + ']');
-  AddLine(Result, COSNam + '=windows [' + ToCSV(COSs) + ']');
-  AddLine(Result, CX86Nam + '=32 [' + ToCSV(CX86s) + ']');
-  AddLine(Result, CInfoNam + '=1 [' + ToCSV(CInfos) + ']');
-  AddLine(Result, CDMDNam + '=dmd.exe');
-  AddLine(Result, CRunNam + '=???.exe arguments...');
+  Result := APrefix + 'ProjectFileName.ini';
+  AddLine(Result, APrefix + CBuildNam + '=debug [' + ToCSV(CBuilds) + ']');
+  AddLine(Result, APrefix + COSNam + '=windows [' + ToCSV(COSs) + ']');
+  AddLine(Result, APrefix + CX86Nam + '=32 [' + ToCSV(CX86s) + ']');
+  AddLine(Result, APrefix + CInfoNam + '=1 [' + ToCSV(CInfos) + ']');
+  AddLine(Result, APrefix + CDMDNam + '=dmd.exe');
+  AddLine(Result, APrefix + CRunNam + '=???.exe arguments...');
 end;
 
 function TRunOptions.SetOption(const AName, AValue: string): Boolean;
