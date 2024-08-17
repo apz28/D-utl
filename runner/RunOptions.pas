@@ -96,6 +96,7 @@ function IndexOf(const AStrs: array of string; const AStr: string): Integer;
 function Quote(const AStr: string; const AQuote: Char = '"'): string;
 function Run(const AExe, AArguments: string): Integer;
 function StripQuote(const AStr: string): string;
+function TimeStampStr: string;
 function ToCSV(const AStrs: array of string; const ADelim: Char = ','): string;
 function WriteStdOut(AStr: AnsiString): BOOL;
 function WriteLnStdOut(AStr: AnsiString): BOOL;
@@ -371,6 +372,11 @@ begin
     Result := Trim(AStr);
 end;
 
+function TimeStampStr: string;
+begin
+  Result := FormatDateTime('yyyy-mm-dd hh:nn:ss.zzz', SysUtils.Now);
+end;
+
 function ToCSV(const AStrs: array of string; const ADelim: Char = ','): string;
 var
   I: Integer;
@@ -438,6 +444,7 @@ begin
   DMDArguments := GetDMDArguments;
   if Options.Info >= 1 then
   begin
+    WriteStdOut(TimeStampStr + ': ');
     WriteStdOut(BuildInfo);
     WriteLnStdOut(' ...');
   end;
@@ -597,6 +604,7 @@ function TDMDOptions.RunIt(const ARun: string): Integer;
 begin
   if Options.Info >= 1 then
   begin
+    WriteStdOut(TimeStampStr + ': ');
     WriteStdOut(ARun);
     WriteLnStdOut(' ...');
   end;
